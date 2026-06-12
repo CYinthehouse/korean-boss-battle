@@ -775,6 +775,7 @@ let paused = false;
 let selectedHero = 'wombat';
 let sharkUnlocked = false;       // unlocked by winning the arm wrestle (this session)
 let aw = null;                   // arm wrestle state
+let lastComment = '', lastArmWon = false;
 const maxDamage = () => CARDS.length * 4;
 
 /* ============================================================
@@ -1700,9 +1701,11 @@ function winGame(armWon){
   setTimeout(()=>{
     hero.classList.remove('flexing');
     boss.classList.remove('flexing');
+    lastArmWon = armWon;
+    lastComment = VICTORY_COMMENTS[Math.floor(Math.random()*VICTORY_COMMENTS.length)];
     $('pcTime').textContent = fmtTime(clearMs);
     $('pcMode').textContent = (mode === 'easy' ? 'EASY' : 'HARD') + ' MODE · ' + CARDS.length + ' CARDS';
-    $('pcComment').textContent = '"' + VICTORY_COMMENTS[Math.floor(Math.random()*VICTORY_COMMENTS.length)] + '"';
+    $('pcComment').textContent = '"' + lastComment + '"';
     $('pcUnlock').classList.toggle('hidden', !armWon);
     refreshFighterUI();
     $('victoryScreen').classList.add('show');
@@ -1723,17 +1726,126 @@ $('continueBtn').addEventListener('click', () => {
   updateHeroHP();
   loadCard();
 });
-$('shareBtn').addEventListener('click', async () => {
-  const extra = sharkUnlocked ? ' I even ARM-WRESTLED the shark and won! 💪' : '';
-  const text = `🥊 I defeated the Shark Boss in ${fmtTime(clearMs)} (${mode.toUpperCase()} mode, ${CARDS.length} cards) on KoreanLearnin Boss Battle!${extra} 🦈💥`;
-  const btn = $('shareBtn');
+/* ---------- photo card → PNG image ---------- */
+function drawSpriteOnCanvas(ctx, map, x, y, px){
+  map.forEach((row, ry) => {
+    for(let rx = 0; rx < row.length; rx++){
+      const c = PAL[row[rx]];
+      if(c){ ctx.fillStyle = c; ctx.fillRect(x + rx*px, y + ry*px, px, px); }
+    }
+  });
+}
+function wrapText(ctx, text, maxWidth){
+  const words = text.split(' '), lines = [];
+  let line = '';
+  for(const w of words){
+    const test = line ? line + ' ' + w : w;
+    if(ctx.measureText(test).width > maxWidth && line){ lines.push(line); line = w; }
+    else line = test;
+  }
+  if(line) lines.push(line);
+  return lines;
+}
+async function renderCardImage(){
   try{
-    if(navigator.share){ await navigator.share({ text }); return; }
-    await navigator.clipboard.writeText(text);
-    btn.textContent = '✅ Copied!';
+    await document.fonts.load('10px "Press Start 2P"');
+    await document.fonts.load('14px "M PLUS Rounded 1c"');
+    await document.fonts.ready;
+  }catch(e){}
+  const S = 3, W = 320, H = 480;
+  const canvas = document.createElement('canvas');
+  canvas.width = W*S; canvas.height = H*S;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(S, S);
+  ctx.imageSmoothingEnabled = false;
+  const PXF = '"Press Start 2P", monospace';
+  const BODYF = '"M PLUS Rounded 1c", sans-serif';
+  const BORDER = '#8D7BA6', INK = '#6B5B7A', SOFT = '#9C8BAE';
+
+  /* gradient frame */
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, '#B5E9EC'); grad.addColorStop(.55, '#FFC2D2'); grad.addColorStop(1, '#FFE9A8');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = BORDER; ctx.lineWidth = 8; ctx.strokeRect(4, 4, W-8, H-8);
+  /* inner panel */
+  ctx.fillStyle = '#FFFDFA'; ctx.fillRect(18, 18, W-36, H-36);
+  ctx.lineWidth = 4; ctx.strokeRect(18, 18, W-36, H-36);
+
+  ctx.textAlign = 'center';
+  /* header */
+  ctx.fillStyle = '#FF8FAB'; ctx.font = '10px ' + PXF;
+  ctx.fillText('★ VICTORY PHOTO CARD ★', W/2, 46);
+  /* hero sprite */
+  const map = selectedHero === 'shark' ? SHARK_HERO_MAP : WOMBAT_WIN_MAP;
+  const px = 5, sw = Math.max(...map.map(r=>r.length)) * px;
+  drawSpriteOnCanvas(ctx, map, (W - sw)/2, 60, px);
+  /* name */
+  ctx.fillStyle = INK; ctx.font = '10px ' + PXF;
+  ctx.fillText(selectedHero === 'shark' ? 'CHAMPION SHARK' : 'CHAMPION WOMBAT', W/2, 184);
+  /* clear time */
+  ctx.fillStyle = '#5BC8CD'; ctx.font = '24px ' + PXF;
+  ctx.fillText(fmtTime(clearMs), W/2, 220);
+  ctx.fillStyle = SOFT; ctx.font = '800 11px ' + BODYF;
+  ctx.fillText('CLEAR TIME', W/2, 236);
+  /* mode chip */
+  const modeTxt = (mode === 'easy' ? 'EASY' : 'HARD') + ' MODE · ' + CARDS.length + ' CARDS';
+  ctx.font = '800 12px ' + BODYF;
+  const mw = ctx.measureText(modeTxt).width + 22;
+  ctx.fillStyle = '#F3EDF7'; ctx.fillRect(W/2 - mw/2, 246, mw, 22);
+  ctx.lineWidth = 2; ctx.strokeStyle = BORDER; ctx.strokeRect(W/2 - mw/2, 246, mw, 22);
+  ctx.fillStyle = INK; ctx.fillText(modeTxt, W/2, 261);
+  let y = 282;
+  /* unlock badge */
+  if(lastArmWon){
+    ctx.font = '7px ' + PXF;
+    const ut = '🦈 NEW FIGHTER UNLOCKED: SHARK!';
+    const uw = ctx.measureText(ut).width + 20;
+    ctx.fillStyle = '#FFD93D'; ctx.fillRect(W/2 - uw/2, y, uw, 22);
+    ctx.strokeStyle = '#16121E'; ctx.lineWidth = 2; ctx.strokeRect(W/2 - uw/2, y, uw, 22);
+    ctx.fillStyle = '#16121E'; ctx.fillText(ut, W/2, y + 15);
+    y += 34;
+  }
+  /* comment box */
+  ctx.font = '800 14px ' + BODYF;
+  const lines = wrapText(ctx, '"' + lastComment + '"', W - 100);
+  const ch = lines.length * 19 + 16;
+  ctx.fillStyle = '#FFE9A8'; ctx.fillRect(36, y, W-72, ch);
+  ctx.strokeStyle = BORDER; ctx.lineWidth = 2; ctx.setLineDash([6,4]);
+  ctx.strokeRect(36, y, W-72, ch);
+  ctx.setLineDash([]);
+  ctx.fillStyle = INK;
+  lines.forEach((ln, i) => ctx.fillText(ln, W/2, y + 22 + i*19));
+  /* brand + date */
+  ctx.fillStyle = SOFT; ctx.font = '7px ' + PXF;
+  ctx.fillText('KOREANLEARNIN ⋆ BOSS BATTLE', W/2, H - 44);
+  ctx.font = '800 11px ' + BODYF;
+  ctx.fillText(new Date().toLocaleDateString(undefined, {year:'numeric', month:'short', day:'numeric'}), W/2, H - 28);
+  return canvas;
+}
+$('shareBtn').addEventListener('click', async () => {
+  const btn = $('shareBtn');
+  btn.textContent = '🎨 Making card…';
+  try{
+    const canvas = await renderCardImage();
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+    const file = new File([blob], 'koreanlearnin-victory-card.png', { type: 'image/png' });
+    const extra = lastArmWon ? ' I even ARM-WRESTLED the shark and won! 💪' : '';
+    const text = `🥊 I defeated the Shark Boss in ${fmtTime(clearMs)} (${mode.toUpperCase()} mode) on KoreanLearnin Boss Battle!${extra} 🦈💥`;
+    if(navigator.canShare && navigator.canShare({ files: [file] })){
+      await navigator.share({ files: [file], text });
+      btn.textContent = '📤 Share';
+      return;
+    }
+    /* fallback: download the PNG */
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'koreanlearnin-victory-card.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+    btn.textContent = '✅ Card saved!';
   }catch(e){
-    try{ await navigator.clipboard.writeText(text); btn.textContent = '✅ Copied!'; }
-    catch(e2){ btn.textContent = '😿 Could not share'; }
+    /* user cancelled the share sheet, or something failed */
+    btn.textContent = (e && e.name === 'AbortError') ? '📤 Share' : '😿 Could not share';
   }
   setTimeout(()=>{ btn.textContent = '📤 Share'; }, 2200);
 });
