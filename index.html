@@ -1273,6 +1273,7 @@ function drawTimer(total){
   $('timerNum').textContent = timeLeft;
   $('timerFill').style.width = (100 * timeLeft / total) + '%';
 }
+const IS_MOBILE_SR = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 function startListening(){
   if(paused) return;
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1285,13 +1286,34 @@ function startListening(){
   $('micStatus').innerHTML = '<span class="mic-dot"></span>Listening…';
   recog = new SR();
   recog.lang = 'ko-KR';
-  recog.continuous = true;
+  /* Mobile Chrome's continuous mode fires duplicate/cumulative results,
+     which doubles the transcript. Use one-shot mode + auto-restart instead. */
+  recog.continuous = !IS_MOBILE_SR;
   recog.interimResults = true;
+
+  const finals = [];           // deduped final segments for this attempt
+  const target = speakCard.blocks.join('');
+
   recog.onresult = (ev) => {
-    let heard = '';
-    for(let i = 0; i < ev.results.length; i++) heard += ev.results[i][0].transcript;
-    const score = similarity(heard, speakCard.blocks.join(''));
-    bestScore = Math.max(bestScore, score);
+    let interim = '';
+    for(let i = ev.resultIndex; i < ev.results.length; i++){
+      const t = (ev.results[i][0].transcript || '').trim();
+      if(!t) continue;
+      if(ev.results[i].isFinal){
+        // skip duplicate final segments (mobile double-fire)
+        if(normalize(t) !== normalize(finals[finals.length-1] || '')) finals.push(t);
+      } else {
+        interim = t;           // keep only the latest interim
+      }
+    }
+    // grade every candidate: each segment alone, finals joined, and with interim —
+    // so a clean single utterance passes even if the engine echoed it
+    const joined = finals.join(' ');
+    const cands = [...finals, interim, joined, (joined + ' ' + interim).trim()].filter(Boolean);
+    for(const c of cands) bestScore = Math.max(bestScore, similarity(c, target));
+    // display: drop the interim if it's just repeating what's already final
+    const showInterim = interim && !normalize(joined).includes(normalize(interim)) ? interim : '';
+    const heard = (joined + ' ' + showInterim).trim();
     $('micStatus').innerHTML = '<span class="mic-dot"></span>Heard: <span class="heard">' + (heard || '…') + '</span>';
     if(bestScore >= PASS_SCORE) onSpeakSuccess();
   };
