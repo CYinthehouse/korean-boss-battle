@@ -1,0 +1,1827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Korean Boss Battle ⋆ KoreanLearnin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FBF4F8;
+  --panel:#FFFDFA;
+  --panel-deep:#F3EDF7;
+  --border:#8D7BA6;
+  --shadow:rgba(141,123,166,.30);
+  --ink:#6B5B7A;
+  --ink-soft:#9C8BAE;
+  --cyan:#B5E9EC;
+  --cyan-deep:#5BC8CD;
+  --yellow:#FFE9A8;
+  --pink:#FFC2D2;
+  --pink-deep:#FF8FAB;
+  --green:#C2EDCD;
+  --green-deep:#6FCF8E;
+  --red:#FF9AA8;
+  --sky1:#C2E6F8;--sky2:#D4EFFA;--sky3:#E6F7FD;
+  --grass:#C4EAB6;--grass-d:#A5DA9E;
+  --px:'Press Start 2P',monospace;
+  --body:'M PLUS Rounded 1c','Hiragino Maru Gothic ProN','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;image-rendering:pixelated;}
+html,body{height:100%;}
+body{
+  font-family:var(--body);
+  font-weight:700;
+  background:var(--bg);
+  background-image:
+    linear-gradient(rgba(141,123,166,.06) 2px, transparent 2px),
+    linear-gradient(90deg, rgba(141,123,166,.06) 2px, transparent 2px);
+  background-size:24px 24px;
+  color:var(--ink);
+  display:flex;flex-direction:column;align-items:center;
+  overflow-x:hidden;
+}
+.wrap{width:100%;max-width:540px;padding:12px 12px 40px;display:flex;flex-direction:column;gap:12px;}
+.blink{animation:blink 1s steps(2,start) infinite;}
+@keyframes blink{50%{opacity:0;}}
+.hidden{display:none !important;}
+
+/* ===== HEADER ===== */
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.logo{font-family:var(--px);font-size:.58rem;color:var(--cyan-deep);line-height:1.7;text-shadow:2px 2px 0 #fff;}
+.logo span{color:var(--pink-deep);}
+.head-right{display:flex;gap:8px;align-items:stretch;}
+.card-count{
+  background:var(--panel);padding:7px 12px;font-size:.78rem;font-weight:800;line-height:1.5;
+  text-align:right;white-space:nowrap;border:3px solid var(--border);box-shadow:3px 3px 0 var(--shadow);
+}
+.card-count b{color:var(--pink-deep);}
+.pause-btn{
+  font-family:var(--px);font-size:.6rem;color:var(--ink);
+  background:var(--panel);border:3px solid var(--border);box-shadow:3px 3px 0 var(--shadow);
+  padding:0 11px;cursor:pointer;
+}
+.pause-btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--shadow);}
+
+/* ===== BATTLE STAGE ===== */
+.stage{
+  position:relative;overflow:hidden;height:255px;flex:none;
+  background:
+    linear-gradient(var(--sky1) 0 34%, var(--sky2) 34% 56%, var(--sky3) 56% 74%,
+                    var(--grass) 74% 86%, var(--grass-d) 86% 100%);
+  border:4px solid var(--border);box-shadow:4px 4px 0 var(--shadow), inset 0 0 0 4px rgba(255,255,255,.4);
+}
+.stage::after{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:9;
+  background:repeating-linear-gradient(transparent 0 3px, rgba(141,123,166,.06) 3px 4px);
+}
+.stage.shake{animation:shake .45s steps(6);}
+@keyframes shake{
+  0%{transform:translate(0,0);}20%{transform:translate(-6px,3px);}40%{transform:translate(6px,-3px);}
+  60%{transform:translate(-5px,-2px);}80%{transform:translate(4px,2px);}100%{transform:translate(0,0);}
+}
+.flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:8;}
+.flash.go{animation:flash .35s steps(3);}
+@keyframes flash{0%{opacity:.85;}100%{opacity:0;}}
+.pxcloud{position:absolute;width:14px;height:14px;background:#fff;z-index:1;opacity:.9;
+  box-shadow:14px 0 #fff,28px 0 #fff,42px 0 #fff,14px -14px #fff,28px -14px #fff;
+  animation:drift 16s linear infinite;}
+.pxcloud.c2{top:64px;animation-delay:7s;animation-duration:22s;transform:scale(.7);}
+.pxcloud.c1{top:30px;}
+@keyframes drift{from{left:-80px;}to{left:620px;}}
+
+.hp-wrap{position:absolute;top:8px;left:10px;right:10px;z-index:5;}
+.hp-label{display:flex;justify-content:space-between;font-size:.68rem;font-weight:800;margin-bottom:3px;
+  color:var(--ink);text-shadow:1px 1px 0 rgba(255,255,255,.8);}
+.hp-bar{height:14px;background:rgba(255,255,255,.7);border:3px solid var(--border);padding:2px;}
+.hp-fill{
+  height:100%;width:100%;
+  background:repeating-linear-gradient(90deg,var(--green-deep) 0 6px,#8DDBA6 6px 8px);
+  transition:width .5s steps(8);
+}
+.hp-fill.mid{background:repeating-linear-gradient(90deg,#F2CE6B 0 6px,var(--yellow) 6px 8px);}
+.hp-fill.low{background:repeating-linear-gradient(90deg,var(--pink-deep) 0 6px,var(--red) 6px 8px);}
+#heroHpRow{margin-top:5px;}
+#heroHpFill{background:repeating-linear-gradient(90deg,var(--pink-deep) 0 6px,#FFA8BE 6px 8px);}
+
+#bossBox{position:absolute;right:3%;bottom:26px;width:50%;max-width:208px;z-index:3;transition:right .8s steps(8), width .8s steps(8);}
+#bossBox svg{width:100%;display:block;}
+#bossBox.hit{animation:bossHit .5s steps(5);}
+@keyframes bossHit{
+  0%{transform:translateX(0);}25%{transform:translateX(14px) rotate(4deg);}
+  55%{transform:translateX(-8px) rotate(-3deg);}100%{transform:translateX(0);}
+}
+#bossBox.megahit{animation:megaHit .7s steps(7);}
+@keyframes megaHit{
+  0%{transform:translate(0,0);}15%{transform:translate(22px,-10px) rotate(9deg);}
+  35%{transform:translate(-12px,5px) rotate(-6deg);}55%{transform:translate(10px,-4px) rotate(4deg);}
+  75%{transform:translate(-6px,2px) rotate(-2deg);}100%{transform:translate(0,0);}
+}
+#bossBox.lunge{animation:lunge .7s steps(7);}
+@keyframes lunge{
+  0%{transform:translate(0,0);}35%{transform:translate(-130px,8px) rotate(-6deg);}
+  60%{transform:translate(-110px,4px);}100%{transform:translate(0,0);}
+}
+#bossBox.taunt{animation:taunt .8s steps(6);}
+@keyframes taunt{
+  0%,100%{transform:translateY(0);}25%{transform:translateY(-12px) rotate(-4deg);}
+  50%{transform:translateY(0);}75%{transform:translateY(-12px) rotate(4deg);}
+}
+#bossBox.push{animation:pushAnim .5s steps(5);}
+@keyframes pushAnim{
+  0%{transform:translate(0,0);}40%{transform:translate(-14px,2px) rotate(-3deg);}100%{transform:translate(0,0);}
+}
+#bossBox.pat{animation:patAnim 1s steps(8);}
+@keyframes patAnim{
+  0%,100%{transform:translate(0,0);}30%{transform:translate(-16px,-8px) rotate(-6deg);}
+  55%{transform:translate(-16px,2px) rotate(-3deg);}75%{transform:translate(-16px,-6px) rotate(-6deg);}
+}
+#bossBox.flexing,#heroBox.flexing{animation:flexBounce .7s steps(4) infinite;}
+@keyframes flexBounce{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-10px) scale(1.05);}}
+#bossBox.defeated{animation:flyOut 1.5s steps(14) forwards;}
+@keyframes flyOut{
+  0%{transform:translate(0,0) rotate(0);}
+  12%{transform:translate(-14px,10px) rotate(-10deg);}
+  100%{transform:translate(140vw,-120vh) rotate(880deg);opacity:.5;}
+}
+#heroBox{position:absolute;left:6%;bottom:16px;width:26%;max-width:104px;z-index:4;animation:bob 1.6s steps(2) infinite;transition:left .8s steps(8), width .8s steps(8);}
+#heroBox svg{width:100%;display:block;}
+@keyframes bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-4px);}}
+#heroBox.punch{animation:punch .55s steps(6);}
+@keyframes punch{
+  0%{transform:translate(0,0);}35%{transform:translate(76px,-18px) rotate(8deg);}100%{transform:translate(0,0);}
+}
+#heroBox.megapunch{animation:megapunch .75s steps(8);}
+@keyframes megapunch{
+  0%{transform:translate(0,0);}18%{transform:translate(-14px,4px) rotate(-8deg) scale(.95);}
+  45%{transform:translate(108px,-30px) rotate(14deg) scale(1.18);}100%{transform:translate(0,0);}
+}
+#heroBox.hurt{animation:hurt .6s steps(6);}
+@keyframes hurt{
+  0%{transform:translate(0,0);filter:none;}
+  30%{transform:translate(-20px,3px) rotate(-8deg);filter:brightness(1.5) saturate(2.4) hue-rotate(-45deg);}
+  60%{transform:translate(-10px,0) rotate(-3deg);filter:brightness(1.3) saturate(1.8) hue-rotate(-30deg);}
+  100%{transform:translate(0,0);filter:none;}
+}
+#heroBox.shove{animation:shoveAnim .5s steps(5);}
+@keyframes shoveAnim{
+  0%{transform:translate(0,0);}40%{transform:translate(14px,-4px) rotate(4deg);}100%{transform:translate(0,0);}
+}
+
+/* arm wrestle: anime close-up — only the arms */
+.stage.wrestle{
+  background:radial-gradient(circle at 50% 40%, #6B4477 0%, #3A2A52 55%, #221A38 100%);
+}
+.stage.wrestle .pxcloud,
+.stage.wrestle #heroBox,
+.stage.wrestle #bossBox{display:none;}
+.speedlines{
+  position:absolute;inset:-25%;display:none;z-index:2;pointer-events:none;
+  background:repeating-conic-gradient(from 0deg at 50% 42%, rgba(255,255,255,.20) 0deg 3deg, transparent 3deg 13deg);
+  animation:slPulse .4s steps(2) infinite;
+}
+.stage.wrestle .speedlines{display:block;}
+@keyframes slPulse{50%{opacity:.45;transform:rotate(5deg);}}
+#wrestleScene{
+  position:absolute;inset:0;z-index:3;display:none;overflow:hidden;
+  animation:tremble .28s steps(2) infinite;
+}
+.stage.wrestle #wrestleScene{display:block;}
+@keyframes tremble{0%,100%{transform:translate(0,0);}50%{transform:translate(1px,-1px);}}
+#armsSvg{
+  position:absolute;left:50%;bottom:-6px;width:118%;transform:translateX(-50%);
+  transition:transform .3s steps(4);
+}
+/* aftermath: arms scene out, characters back in close for the pat & flex */
+.stage.aftermath #wrestleScene,
+.stage.aftermath .speedlines{display:none;}
+.stage.aftermath #heroBox{display:block;left:24%;width:30%;bottom:20px;animation:none;}
+.stage.aftermath #bossBox{display:block;right:18%;width:40%;bottom:22px;}
+.arm-meter{
+  position:absolute;left:8%;right:8%;top:64px;z-index:6;display:none;
+}
+.stage.wrestle .arm-meter{display:block;}
+.stage.aftermath .arm-meter{display:none;}
+.arm-meter .am-label{display:flex;justify-content:space-between;font-size:.62rem;font-weight:800;color:#fff;text-shadow:1px 1px 0 rgba(34,26,56,.8);margin-bottom:3px;}
+.am-bar{height:20px;border:3px solid var(--border);background:rgba(255,255,255,.75);padding:2px;position:relative;}
+.am-fill{
+  height:100%;width:50%;
+  background:repeating-linear-gradient(90deg,var(--pink-deep) 0 7px,#FFA8BE 7px 9px);
+  transition:width .3s steps(4);
+}
+.am-marker{
+  position:absolute;top:-9px;width:14px;height:32px;background:var(--yellow);
+  border:3px solid var(--border);left:50%;transform:translateX(-50%);
+  transition:left .3s steps(4);
+}
+.burger{position:absolute;width:56px;z-index:6;left:16%;bottom:32%;pointer-events:none;animation:burgerFly .6s steps(8) forwards;}
+.burger svg{width:100%;display:block;}
+@keyframes burgerFly{
+  0%{transform:translate(0,0) rotate(0) scale(.8);}
+  100%{transform:translate(220px,-26px) rotate(540deg) scale(1.15);}
+}
+.pow{
+  position:absolute;z-index:7;font-family:var(--px);font-size:.95rem;color:#F2B33D;
+  text-shadow:2px 2px 0 #fff,-2px -2px 0 #fff,2px -2px 0 #fff,-2px 2px 0 #fff;
+  pointer-events:none;animation:powPop .7s steps(6) forwards;white-space:nowrap;
+}
+.pow.crit{font-size:1.15rem;color:var(--pink-deep);}
+.pow.chomp{color:#7A8FD4;}
+.pow.heart{color:var(--pink-deep);font-size:1.05rem;}
+@keyframes powPop{
+  0%{transform:scale(.4) rotate(-8deg);opacity:0;}
+  30%{transform:scale(1.2) rotate(4deg);opacity:1;}
+  100%{transform:scale(1) translateY(-30px);opacity:0;}
+}
+@media (prefers-reduced-motion:reduce){
+  .pxcloud,#heroBox{animation:none;}
+}
+
+/* ===== TASK PANEL ===== */
+.task{
+  background:var(--panel);border:4px solid var(--border);
+  box-shadow:4px 4px 0 var(--shadow), inset 0 0 0 3px rgba(255,255,255,.6);
+  padding:16px 14px 18px;position:relative;
+}
+.task-top{display:flex;gap:6px;margin-bottom:12px;align-items:stretch;}
+.steps{display:flex;gap:6px;flex:1;}
+.step-pill{
+  flex:1;text-align:center;font-family:var(--px);font-size:.46rem;padding:8px 2px;line-height:1.6;
+  background:var(--panel-deep);border:3px solid var(--border);color:var(--ink-soft);
+}
+.step-pill.on{background:var(--cyan);color:var(--ink);}
+.step-pill.done{background:var(--green);color:var(--ink);}
+.redo-btn{
+  font-family:var(--body);font-weight:800;font-size:.72rem;color:var(--ink);
+  background:var(--panel-deep);border:3px solid var(--border);padding:0 10px;cursor:pointer;
+  box-shadow:0 3px 0 var(--shadow);white-space:nowrap;
+}
+.redo-btn:active{transform:translateY(3px);box-shadow:none;}
+
+.situation{
+  background:var(--panel-deep);border:3px solid var(--border);
+  padding:9px 12px;font-size:.85rem;line-height:1.6;color:var(--ink);margin-bottom:10px;
+}
+.situation b{color:var(--pink-deep);display:block;margin-bottom:2px;font-size:.7rem;letter-spacing:1px;text-transform:uppercase;}
+.english{font-size:1.05rem;font-weight:800;line-height:1.6;text-align:center;margin:10px 4px 6px;color:var(--ink);}
+.keywords{font-size:.8rem;color:var(--ink-soft);text-align:center;margin-bottom:14px;line-height:1.9;}
+.keywords i{font-style:normal;background:var(--yellow);border:2px solid var(--border);padding:1px 8px;margin:0 3px;display:inline-block;color:var(--ink);}
+
+.blocks{
+  display:flex;flex-wrap:wrap;gap:10px;justify-content:center;
+  padding:16px 10px;background:var(--panel-deep);border:3px dashed var(--border);
+  min-height:78px;position:relative;touch-action:none;
+}
+.block{
+  font-size:1.4rem;font-weight:800;color:var(--ink);
+  background:var(--cyan);border:3px solid var(--border);
+  padding:10px 18px;cursor:grab;user-select:none;
+  box-shadow:0 5px 0 var(--shadow);
+  touch-action:none;line-height:1.2;
+}
+.block:active{cursor:grabbing;}
+.block.dragging{opacity:.25;}
+.block.swap-target{background:var(--yellow);transform:translateY(-3px);}
+.block.locked{background:var(--green);cursor:default;animation:lockPop .35s steps(3);}
+@keyframes lockPop{50%{transform:scale(1.12);}}
+.ghost{position:fixed;z-index:99;pointer-events:none;transform:translate(-50%,-50%) rotate(-3deg);opacity:.95;}
+.hint{text-align:center;font-size:.75rem;color:var(--ink-soft);margin-top:12px;line-height:1.7;}
+
+/* ===== SPEAK PHASE ===== */
+.speak{display:none;text-align:center;}
+.speak.show{display:block;animation:slideUp .35s steps(4);}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.speak h2{font-family:var(--px);font-size:.78rem;color:#F2A93D;line-height:1.8;margin-bottom:6px;text-shadow:2px 2px 0 #fff;}
+.speak h2.danger-title{color:var(--pink-deep);}
+.speak h2.bonus-title{color:#FFD93D;}
+.speak h2.wrestle-title{color:var(--cyan-deep);}
+.sub{font-size:.85rem;color:var(--ink-soft);line-height:1.7;margin-bottom:10px;}
+.target{
+  font-size:1.7rem;font-weight:800;color:var(--ink);background:var(--green);
+  border:3px solid var(--border);box-shadow:0 4px 0 var(--shadow);
+  padding:12px;margin:10px 0 6px;line-height:1.4;
+}
+.target.english-only{font-size:1.05rem;background:var(--pink);line-height:1.6;padding:14px 10px;}
+.target.bonus-target{background:#FFD93D;border-color:#16121E;color:#16121E;box-shadow:0 4px 0 #E84545;}
+.memory-tag{font-size:.8rem;font-weight:800;color:var(--pink-deep);margin-bottom:10px;line-height:1.7;}
+
+/* ===== BONUS "POW" MODE ===== */
+.task.bonus-mode{
+  background:#241F2E;border-color:#E84545;
+  box-shadow:4px 4px 0 rgba(0,0,0,.5), inset 0 0 0 3px rgba(255,217,61,.2);
+  padding-top:30px;
+  animation:bonusPulse .8s steps(2) infinite;
+}
+@keyframes bonusPulse{50%{border-color:#FFD93D;}}
+.task.bonus-mode::before{
+  content:"";position:absolute;top:0;left:0;right:0;height:12px;
+  background:repeating-linear-gradient(45deg,#FFD93D 0 12px,#16121E 12px 24px);
+  border-bottom:3px solid #E84545;
+}
+.task.bonus-mode .speak h2.bonus-title{color:#FFD93D;text-shadow:2px 2px 0 #E84545,4px 4px 0 #16121E;}
+.task.bonus-mode .sub{color:#F2B8B8;}
+.task.bonus-mode .timer-bar{background:#16121E;border-color:#E84545;}
+.task.bonus-mode .timer-fill,.task.bonus-mode .timer-fill.low{
+  background:repeating-linear-gradient(90deg,#E84545 0 8px,#FF6B6B 8px 10px);
+}
+.task.bonus-mode .timer-num{color:#FFD93D;text-shadow:3px 3px 0 #16121E;}
+.task.bonus-mode .timer-num small{color:#F2B8B8;}
+.task.bonus-mode .mic-status{color:#C9B8D6;}
+.task.bonus-mode .mic-status .heard{color:#FFD93D;}
+.task.bonus-mode .result-msg.good{color:#FFD93D;}
+.task.bonus-mode .result-msg.bad{color:#FF6B6B;}
+
+.timer{margin:14px auto 8px;max-width:320px;}
+.timer-num{font-family:var(--px);font-size:1.5rem;color:var(--ink);text-shadow:3px 3px 0 rgba(141,123,166,.2);margin-bottom:8px;}
+.timer-num small{font-family:var(--body);font-size:.7rem;font-weight:800;display:block;color:var(--ink-soft);margin-top:6px;letter-spacing:1px;}
+.timer-bar{height:18px;background:var(--panel-deep);border:3px solid var(--border);padding:2px;}
+.timer-fill{
+  height:100%;width:100%;
+  background:repeating-linear-gradient(90deg,var(--cyan-deep) 0 8px,#7DD6DA 8px 10px);
+  transition:width 1s steps(2);
+}
+.timer-fill.low{background:repeating-linear-gradient(90deg,var(--pink-deep) 0 8px,var(--red) 8px 10px);}
+.mic-status{min-height:46px;font-size:.85rem;line-height:1.7;color:var(--ink-soft);padding:0 6px;}
+.mic-status .heard{font-size:1.1rem;font-weight:800;color:var(--cyan-deep);}
+.mic-dot{display:inline-block;width:9px;height:9px;background:var(--pink-deep);margin-right:7px;animation:blink .8s steps(2,start) infinite;vertical-align:middle;}
+.btn{
+  font-family:var(--body);font-weight:800;font-size:1rem;color:var(--ink);
+  background:var(--yellow);border:4px solid var(--border);
+  padding:13px 26px;cursor:pointer;box-shadow:0 5px 0 var(--shadow);
+  margin-top:10px;
+}
+.btn:active{transform:translateY(4px);box-shadow:0 1px 0 var(--shadow);}
+.btn.alt{background:var(--cyan);}
+.btn.pink{background:var(--pink);}
+.btn.green{background:var(--green);}
+.result-msg{font-size:1.05rem;font-weight:800;min-height:1.6rem;margin-top:10px;line-height:1.7;}
+.result-msg.good{color:var(--green-deep);}
+.result-msg.bad{color:var(--pink-deep);}
+
+/* ===== ARM WRESTLE PANEL ===== */
+.wrestlep{display:none;text-align:center;}
+.wrestlep.show{display:block;animation:slideUp .35s steps(4);}
+.wrestlep h2{font-family:var(--px);font-size:.78rem;color:var(--cyan-deep);line-height:1.8;margin-bottom:6px;text-shadow:2px 2px 0 #fff;}
+.aw-count{font-family:var(--px);font-size:.65rem;color:var(--pink-deep);margin-bottom:8px;}
+.aw-prompt{
+  font-size:1.05rem;font-weight:800;color:var(--ink);background:var(--yellow);
+  border:3px solid var(--border);box-shadow:0 4px 0 var(--shadow);
+  padding:12px 10px;margin:8px 0 12px;line-height:1.5;
+}
+.aw-opts{display:flex;flex-direction:column;gap:9px;margin-bottom:12px;}
+.aw-opt{
+  font-family:var(--body);font-size:1.3rem;font-weight:800;color:var(--ink);
+  background:var(--cyan);border:3px solid var(--border);box-shadow:0 4px 0 var(--shadow);
+  padding:11px 8px;cursor:pointer;line-height:1.3;
+}
+.aw-opt:active{transform:translateY(3px);box-shadow:0 1px 0 var(--shadow);}
+.aw-opt.right{background:var(--green);animation:lockPop .3s steps(3);}
+.aw-opt.wrong{background:var(--red);animation:shakeOpt .3s steps(4);}
+@keyframes shakeOpt{25%{transform:translateX(-6px);}75%{transform:translateX(6px);}}
+.aw-timer-bar{height:18px;background:var(--panel-deep);border:3px solid var(--border);padding:2px;max-width:320px;margin:0 auto;}
+.aw-timer-fill{height:100%;width:100%;background:repeating-linear-gradient(90deg,var(--pink-deep) 0 8px,var(--red) 8px 10px);}
+.aw-sub{font-size:.78rem;color:var(--ink-soft);margin-top:10px;line-height:1.7;}
+
+/* ===== OVERLAY SCREENS ===== */
+.overlay{
+  display:none;position:fixed;inset:0;z-index:50;background:rgba(251,244,248,.97);
+  flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:22px;gap:12px;
+  overflow-y:auto;
+}
+.overlay.show{display:flex;}
+.overlay h1{font-family:var(--px);font-size:1.4rem;color:#F2A93D;text-shadow:3px 3px 0 var(--pink),6px 6px 0 rgba(141,123,166,.25);line-height:1.7;animation:winPulse .8s steps(2) infinite;}
+.overlay h1.lose{color:var(--pink-deep);text-shadow:3px 3px 0 #fff,6px 6px 0 rgba(141,123,166,.25);}
+@keyframes winPulse{50%{transform:scale(1.05);}}
+.overlay p{font-size:.95rem;font-weight:800;line-height:1.9;color:var(--ink);}
+.overlay p .ko{color:var(--cyan-deep);}
+.overlay svg.spr{width:150px;}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+.confetti{position:fixed;top:-12px;z-index:51;animation:confFall linear forwards;}
+@keyframes confFall{to{transform:translateY(110vh) rotate(700deg);}}
+
+/* ===== PAUSE OVERLAY ===== */
+.pause-overlay{
+  display:none;position:fixed;inset:0;z-index:55;background:rgba(251,244,248,.96);
+  flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:22px;gap:14px;
+}
+.pause-overlay.show{display:flex;}
+.pause-overlay h1{font-family:var(--px);font-size:1.3rem;color:var(--cyan-deep);text-shadow:3px 3px 0 var(--pink),6px 6px 0 rgba(141,123,166,.25);line-height:1.7;}
+.pause-overlay p{font-size:.9rem;font-weight:800;color:var(--ink-soft);line-height:1.8;}
+.pause-overlay .btn-col{display:flex;flex-direction:column;gap:4px;align-items:center;}
+
+/* ===== PHOTO CARD ===== */
+.photocard{
+  width:280px;background:linear-gradient(160deg,var(--cyan) 0%,var(--pink) 55%,var(--yellow) 100%);
+  border:4px solid var(--border);box-shadow:6px 6px 0 var(--shadow);
+  padding:10px;animation:cardIn .6s steps(8);
+}
+@keyframes cardIn{from{transform:rotate(-8deg) scale(.5);opacity:0;}to{transform:rotate(0) scale(1);opacity:1;}}
+.pc-inner{background:var(--panel);border:3px solid var(--border);padding:14px 12px;display:flex;flex-direction:column;align-items:center;gap:7px;}
+.pc-head{font-family:var(--px);font-size:.55rem;color:var(--pink-deep);letter-spacing:1px;}
+.pc-inner svg{width:110px;}
+.pc-name{font-family:var(--px);font-size:.6rem;color:var(--ink);}
+.pc-time{font-family:var(--px);font-size:1.1rem;color:var(--cyan-deep);margin-top:2px;}
+.pc-time small{font-family:var(--body);font-size:.65rem;font-weight:800;display:block;color:var(--ink-soft);margin-top:4px;letter-spacing:1px;}
+.pc-mode{font-size:.72rem;font-weight:800;background:var(--panel-deep);border:2px solid var(--border);padding:3px 10px;color:var(--ink);}
+.pc-unlock{
+  font-family:var(--px);font-size:.5rem;color:#16121E;background:#FFD93D;
+  border:2px solid #16121E;padding:5px 9px;line-height:1.6;animation:winPulse .8s steps(2) infinite;
+}
+.pc-comment{
+  font-size:.88rem;font-weight:800;color:var(--ink);line-height:1.6;
+  background:var(--yellow);border:2px dashed var(--border);padding:8px 10px;margin-top:2px;
+}
+.pc-brand{font-family:var(--px);font-size:.42rem;color:var(--ink-soft);margin-top:4px;letter-spacing:1px;}
+
+/* ===== START SCREEN ===== */
+.start{
+  position:fixed;inset:0;z-index:60;background:var(--bg);
+  background-image:
+    linear-gradient(rgba(141,123,166,.06) 2px, transparent 2px),
+    linear-gradient(90deg, rgba(141,123,166,.06) 2px, transparent 2px);
+  background-size:24px 24px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;gap:13px;
+  overflow-y:auto;
+}
+.start h1{font-family:var(--px);font-size:1.15rem;color:var(--cyan-deep);line-height:2;text-shadow:3px 3px 0 var(--pink),6px 6px 0 rgba(141,123,166,.25);}
+.start p{font-size:.8rem;font-weight:700;color:var(--ink-soft);max-width:360px;line-height:1.8;}
+.vs-row{display:flex;align-items:center;gap:14px;}
+.vs-row .vs{font-family:var(--px);font-size:.95rem;color:var(--pink-deep);text-shadow:2px 2px 0 #fff;}
+.vs-row svg.mini{width:80px;}
+
+/* deck category card: top half easy, bottom half hard */
+.deck-card{
+  width:300px;background:var(--panel);border:4px solid var(--border);
+  box-shadow:5px 5px 0 var(--shadow);overflow:hidden;
+}
+.deck-title{
+  font-family:var(--px);font-size:.55rem;color:var(--ink);line-height:1.8;
+  background:var(--panel-deep);border-bottom:3px solid var(--border);padding:10px 8px;
+}
+.deck-title span{color:var(--pink-deep);}
+.deck-half{
+  display:block;width:100%;text-align:left;cursor:pointer;border:none;
+  font-family:var(--body);color:var(--ink);padding:14px 16px;
+}
+.deck-half .mt{font-family:var(--px);font-size:.62rem;line-height:1.6;display:block;margin-bottom:5px;}
+.deck-half .md{font-size:.74rem;font-weight:700;color:var(--ink-soft);line-height:1.6;display:block;}
+.deck-half.easy{background:var(--green);}
+.deck-half.easy .mt{color:#2E7D49;}
+.deck-half.easy .md{color:#4F7A5E;}
+.deck-half.hard{background:var(--pink);}
+.deck-half.hard .mt{color:#C44E6E;}
+.deck-half.hard .md{color:#A86B7D;}
+.deck-half:active{filter:brightness(.93);}
+.deck-divider{height:4px;background:var(--border);}
+
+/* fighter select */
+.fighter-row{display:flex;flex-direction:column;gap:7px;align-items:center;}
+.fighter-row .fr-label{font-family:var(--px);font-size:.5rem;color:var(--ink-soft);letter-spacing:1px;}
+.fighter-btns{display:flex;gap:10px;}
+.fighter-btn{
+  width:86px;background:var(--panel);border:3px solid var(--border);box-shadow:0 4px 0 var(--shadow);
+  padding:8px 4px 6px;cursor:pointer;font-family:var(--body);font-weight:800;font-size:.66rem;color:var(--ink);
+}
+.fighter-btn svg{width:52px;display:block;margin:0 auto 4px;}
+.fighter-btn.sel{background:var(--yellow);border-color:#C9941A;}
+.fighter-btn.locked{opacity:.55;cursor:not-allowed;}
+.fighter-btn:not(.locked):active{transform:translateY(3px);box-shadow:0 1px 0 var(--shadow);}
+.fighter-btn .lock-note{display:block;font-size:.58rem;color:var(--ink-soft);font-weight:700;line-height:1.4;margin-top:2px;}
+
+/* ===== MOBILE TWEAKS ===== */
+@media (max-width:420px){
+  .wrap{padding:10px 8px 32px;gap:10px;}
+  .logo{font-size:.5rem;}
+  .card-count{font-size:.7rem;padding:6px 9px;}
+  .stage{height:212px;}
+  #bossBox{max-width:164px;}
+  #heroBox{max-width:84px;}
+  @keyframes punch{
+    0%{transform:translate(0,0);}35%{transform:translate(58px,-14px) rotate(8deg);}100%{transform:translate(0,0);}
+  }
+  @keyframes megapunch{
+    0%{transform:translate(0,0);}18%{transform:translate(-10px,3px) rotate(-8deg) scale(.95);}
+    45%{transform:translate(84px,-24px) rotate(14deg) scale(1.15);}100%{transform:translate(0,0);}
+  }
+  @keyframes lunge{
+    0%{transform:translate(0,0);}35%{transform:translate(-95px,6px) rotate(-6deg);}
+    60%{transform:translate(-80px,3px);}100%{transform:translate(0,0);}
+  }
+  @keyframes burgerFly{
+    0%{transform:translate(0,0) rotate(0) scale(.7);}
+    100%{transform:translate(160px,-20px) rotate(540deg) scale(1);}
+  }
+  .burger{width:44px;}
+  .task{padding:13px 10px 15px;}
+  .task.bonus-mode{padding-top:28px;}
+  .step-pill{font-size:.4rem;padding:7px 1px;}
+  .redo-btn{font-size:.65rem;padding:0 8px;}
+  .english{font-size:.95rem;}
+  .block{font-size:1.25rem;padding:9px 14px;}
+  .target{font-size:1.45rem;}
+  .target.english-only{font-size:.95rem;}
+  .speak h2,.wrestlep h2{font-size:.64rem;}
+  .timer-num{font-size:1.25rem;}
+  .aw-opt{font-size:1.15rem;}
+  .arm-meter{top:58px;}
+  .pow{font-size:.8rem;}
+  .pow.crit{font-size:.95rem;}
+  .start h1{font-size:.95rem;}
+  .overlay h1{font-size:1.1rem;}
+  .photocard{width:250px;}
+  .deck-card{width:272px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ START SCREEN ============ -->
+<div class="start" id="startScreen">
+  <h1>KOREAN<br>BOSS BATTLE</h1>
+  <div class="vs-row">
+    <svg class="mini" id="startWombat"></svg>
+    <div class="vs blink">VS</div>
+    <svg class="mini" id="startShark"></svg>
+  </div>
+
+  <!-- deck category card -->
+  <div class="deck-card">
+    <div class="deck-title">📚 BEGINNER PACK 1 · <span id="deckCount">5 CARDS</span></div>
+    <button class="deck-half easy" id="easyBtn">
+      <span class="mt">🌱 EASY MODE</span>
+      <span class="md">Build → Read → Memory, 3 steps per card. The shark attacks every 10s — you have 150 HP.</span>
+    </button>
+    <div class="deck-divider"></div>
+    <button class="deck-half hard" id="hardBtn">
+      <span class="mt">😈 HARD MODE</span>
+      <span class="md">No keywords! English only — speak Korean right away. Shark attacks every 5s — only 100 HP!</span>
+    </button>
+  </div>
+
+  <!-- fighter select -->
+  <div class="fighter-row">
+    <div class="fr-label">CHOOSE YOUR FIGHTER</div>
+    <div class="fighter-btns">
+      <button class="fighter-btn sel" id="pickWombat"><svg id="fighterWombat"></svg>WOMBAT</button>
+      <button class="fighter-btn locked" id="pickShark"><svg id="fighterShark"></svg>SHARK<span class="lock-note" id="sharkLockNote">🔒 Win the arm wrestle!</span></button>
+    </div>
+  </div>
+  <p>🎤 Allow the mic when asked · Chrome works best</p>
+</div>
+
+<div class="wrap">
+  <header>
+    <div class="logo">KOREAN<span>LEARNIN</span><br>BOSS BATTLE</div>
+    <div class="head-right">
+      <div class="card-count" id="cardCount">Card <b>1/1</b></div>
+      <button class="pause-btn" id="pauseBtn" title="Pause">&#10074;&#10074;</button>
+    </div>
+  </header>
+
+  <!-- ============ BATTLE STAGE ============ -->
+  <div class="stage" id="stage">
+    <div class="pxcloud c1"></div><div class="pxcloud c2"></div>
+    <div class="flash" id="flash"></div>
+    <div class="hp-wrap" id="hpWrap">
+      <div class="hp-label"><span>🦈 SHARK BOSS Lv.99</span><span id="hpText">HP 100/100</span></div>
+      <div class="hp-bar"><div class="hp-fill" id="hpFill"></div></div>
+      <div id="heroHpRow">
+        <div class="hp-label"><span id="heroHpName">🥊 WOMBAT</span><span id="heroHpText">HP 150/150</span></div>
+        <div class="hp-bar"><div class="hp-fill" id="heroHpFill"></div></div>
+      </div>
+    </div>
+    <!-- arm wrestle: anime close-up scene -->
+    <div class="speedlines"></div>
+    <div id="wrestleScene">
+      <svg id="armsSvg" viewBox="0 0 120 78" shape-rendering="crispEdges">
+        <g id="armsStatic"></g>
+        <g id="armsGroup"></g>
+      </svg>
+    </div>
+    <!-- arm wrestle meter -->
+    <div class="arm-meter">
+      <div class="am-label"><span>🦈 SHARK</span><span>YOU 💪</span></div>
+      <div class="am-bar"><div class="am-fill" id="amFill"></div><div class="am-marker" id="amMarker"></div></div>
+    </div>
+    <div id="bossBox"><svg id="bossSvg"></svg></div>
+    <div id="heroBox"><svg id="heroSvg"></svg></div>
+  </div>
+
+  <!-- ============ TASK PANEL ============ -->
+  <div class="task" id="taskCard">
+    <div class="task-top" id="taskTop">
+      <div class="steps" id="stepsRow">
+        <div class="step-pill" id="pill1">1 BUILD</div>
+        <div class="step-pill" id="pill2">2 READ</div>
+        <div class="step-pill" id="pill3">3 MEMORY</div>
+      </div>
+      <button class="redo-btn" id="redoBtn">↺ Redo</button>
+    </div>
+
+    <!-- STEP 1 : MIX & MATCH (easy mode only) -->
+    <div id="phase1">
+      <div class="situation"><b>Situation</b><span id="situationText"></span></div>
+      <div class="english" id="englishText"></div>
+      <div class="keywords" id="keywordsText"></div>
+      <div class="blocks" id="blocksRow"></div>
+      <div class="hint">Drag a block onto another block to swap them! ↔</div>
+    </div>
+
+    <!-- SPEAK STEPS -->
+    <div class="speak" id="phase2">
+      <h2 id="speakTitle">NOW SPEAK IT! HURRY!!</h2>
+      <div class="sub" id="speakSub"></div>
+      <div class="target" id="targetSentence"></div>
+      <div class="memory-tag hidden" id="memoryTag">No peeking! Say the Korean from memory! 🙈</div>
+      <div class="timer">
+        <div class="timer-num"><span id="timerNum">20</span><small>SECONDS LEFT</small></div>
+        <div class="timer-bar"><div class="timer-fill" id="timerFill"></div></div>
+      </div>
+      <div class="mic-status" id="micStatus"><span class="mic-dot"></span>Listening…</div>
+      <div class="result-msg" id="resultMsg"></div>
+      <button class="btn pink hidden" id="retryBtn">Try Again! 🔄</button>
+      <button class="btn alt hidden" id="manualBtn">I said it! ✔</button>
+    </div>
+
+    <!-- ARM WRESTLE -->
+    <div class="wrestlep" id="phaseWrestle">
+      <h2 id="awTitle">💪 FINAL CHALLENGE: ARM WRESTLE!! 💪</h2>
+      <div class="aw-count" id="awCount">0 / 5 MATCHES</div>
+      <div class="aw-prompt" id="awPrompt">Get ready…</div>
+      <div class="aw-opts" id="awOpts"></div>
+      <div class="aw-timer-bar"><div class="aw-timer-fill" id="awTimerFill"></div></div>
+      <div class="aw-sub">Tap the matching Korean! 5 matches in 15 seconds — but the shark pushes back every 2 seconds!</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ VICTORY SCREEN ============ -->
+<div class="overlay" id="victoryScreen">
+  <h1>YOU WIN!!</h1>
+  <div class="photocard">
+    <div class="pc-inner">
+      <div class="pc-head">★ VICTORY PHOTO CARD ★</div>
+      <svg id="winHero"></svg>
+      <div class="pc-name" id="pcName">CHAMPION WOMBAT</div>
+      <div class="pc-time"><span id="pcTime">00:00</span><small>CLEAR TIME</small></div>
+      <div class="pc-mode" id="pcMode">EASY MODE · 5 CARDS</div>
+      <div class="pc-unlock hidden" id="pcUnlock">🦈 NEW FIGHTER UNLOCKED: SHARK!</div>
+      <div class="pc-comment" id="pcComment">"You really kicked him in the nuts today!"</div>
+      <div class="pc-brand">KOREANLEARNIN ⋆ BOSS BATTLE</div>
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn alt" id="shareBtn">📤 Share</button>
+    <button class="btn" id="playAgainBtn">▶ Play Again</button>
+    <button class="btn pink" id="menuBtn2">🏠 Main Menu</button>
+  </div>
+</div>
+
+<!-- ============ GAME OVER SCREEN ============ -->
+<div class="overlay" id="gameOverScreen">
+  <svg class="spr" id="loseShark"></svg>
+  <h1 class="lose">GAME OVER!!</h1>
+  <p>The shark chomped you down to 0 HP!<br>Heal up and try that card again. <span class="ko">화이팅!</span></p>
+  <button class="btn green" id="continueBtn">💪 Continue (full HP)</button>
+</div>
+
+<!-- ============ PAUSE SCREEN ============ -->
+<div class="pause-overlay" id="pauseScreen">
+  <h1>PAUSED</h1>
+  <p>Take a breath! The shark is frozen too. 🧊🦈</p>
+  <div class="btn-col">
+    <button class="btn green" id="resumeBtn">▶ Resume</button>
+    <button class="btn" id="restartBtn">↺ Restart Game</button>
+    <button class="btn pink" id="menuBtn">🏠 Main Menu</button>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   CARD DATA — add up to 25–35 cards here.
+   blocks must be in CORRECT order; the game shuffles them.
+   ============================================================ */
+const DECK_TITLE = "BEGINNER PACK 1";
+const CARDS = [
+  {
+    situation: "Everyone is ordering drinks at a cafe and now it's your turn.",
+    english: "For me, coffee please give me.",
+    keywords: [["I / me","저"],["as for / topic","은/는"],["coffee","커피"],["please give me","주세요"]],
+    blocks: ["저는","커피","주세요"]
+  },
+  {
+    situation: "You're still at the cafe — now you want water.",
+    english: "For me, water please give me.",
+    keywords: [["I / me","저"],["water","물"],["please give me","주세요"]],
+    blocks: ["저는","물","주세요"]
+  },
+  {
+    situation: "You're at a bakery pointing at the bread.",
+    english: "Please give me one bread.",
+    keywords: [["bread","빵"],["one (thing)","하나"],["please give me","주세요"]],
+    blocks: ["빵","하나","주세요"]
+  },
+  {
+    situation: "A new friend asks what food you like.",
+    english: "As for me, I like kimchi.",
+    keywords: [["I / me","저"],["kimchi","김치"],["to like","좋아해요"]],
+    blocks: ["저는","김치","좋아해요"]
+  },
+  {
+    situation: "Someone asks what you are doing these days.",
+    english: "As for me, I study Korean.",
+    keywords: [["I / me","저"],["Korean language","한국어"],["to study","공부해요"]],
+    blocks: ["저는","한국어","공부해요"]
+  }
+];
+
+const VICTORY_COMMENTS = [
+  "You really kicked him in the nuts today!",
+  "You slapped the jorts clean off him!",
+  "That shark won't sit right for a week!",
+  "He swam home crying to his mommy!",
+  "His big biceps couldn't save his soggy butt!",
+  "You turned that shark into fish sticks!",
+  "He's gonna need new jorts AND a new ego!",
+  "Certified shark-butt kicker!!"
+];
+
+/* ============================================================ */
+const SPEAK_SECONDS = 20;
+const BONUS_SECONDS = 5;
+const PASS_SCORE = 0.90;
+const DMG_READ = 1, DMG_MEMORY = 2, DMG_HARD = 3, DMG_BONUS = 1;
+const HERO_MAX = { easy: 150, hard: 100 };
+const ATTACK_EVERY = { easy: 10000, hard: 5000 };
+const SHARK_ATTACK_DMG = 10;
+/* arm wrestle */
+const AW_TIME = 15;        // seconds
+const AW_NEED = 5;         // matches to win
+const AW_MATCH_GAIN = 10;  // meter % per match
+const AW_PUSH = 7;         // shark meter % every 2s
+const AW_WRONG = 5;        // penalty for a wrong tap
+
+const $ = id => document.getElementById(id);
+let mode = 'easy';
+let cardIdx = 0, blockOrder = [];
+let phase = null;          // 'build' | 'read' | 'memory' | 'hard' | 'bonus' | 'wrestle' | null
+let speakKind = null, speakCard = null;
+let recog = null, timerInt = null, timeLeft = 0, speakingActive = false;
+let bestScore = 0, damage = 0, cardDamage = 0;
+let heroHP = HERO_MAX.easy, attackInt = null;
+let startTime = 0, clearMs = 0, pausedAt = 0;
+let paused = false;
+let selectedHero = 'wombat';
+let sharkUnlocked = false;       // unlocked by winning the arm wrestle (this session)
+let aw = null;                   // arm wrestle state
+const maxDamage = () => CARDS.length * 4;
+
+/* ============================================================
+   8-BIT SPRITES (pastel pixel maps)
+   ============================================================ */
+const PAL = {
+  o:'#56618A', b:'#A3CBE8', d:'#84AFD4', l:'#EAF6FC', w:'#FFFFFF',
+  k:'#3A4060', m:'#6B7BA3', j:'#9FB4E5', J:'#8499D1', y:'#FFE08A',
+  B:'#BC9168', D:'#9A744E', L:'#E6CCA8', P:'#FF9FBC',
+  n:'#E8B86E', g:'#9ED98F', p:'#9A6B48', c:'#FFD66B'
+};
+
+const SHARK_MAP = [
+".................oo...................",
+"................obbo..................",
+"................obbo..................",
+"...............obbbbo.................",
+"...ooo.....ooooobbbboooo.....ooo......",
+"..obbbo...obbbbbbbbbbbbbbo..obbbo.....",
+".obbbbbo.obbbbbbbbbbbbbbbbo.obbbbbo...",
+".obwbbbo.obbokkbbbbbbkkobbo.obbwbbo...",
+".obbbbo.obbbowwkbbbbkwwobbbo.obbbbo...",
+"..obbbo.obbbowwkbbbbkwwobbbo.obbbo....",
+"..obbo..obbbbbbbbbbbbbbbbbbo..obbo....",
+"..obbo..obbbommmmmmmmmmobbbo..obbo....",
+".obbbo..obbomwmwmwmwmwmwobbo..obbbo...",
+".obbbo...obommmmmmmmmmmmobo...obbbo...",
+"obbbbo...obbommmmmmmmmmobbo...obbbbo..",
+"obddbbo..obbbboooooooobbbbo..obbddbo..",
+"obbbbbo..obdbbbbbbbbbbbbdbo..obbbbbo..",
+"obbbbbboobdbbllllllllbbbdboobbbbbbbo..",
+".obbbbbbobbbllllllllllbbbbobbbbbbbo...",
+".obdbbbbobdbllllllllllbdbbobbbbdbo....",
+"..obbbbbobbbllllllllllbbbbobbbbbo.....",
+"...oobbbobbbllllllllllbbbbobbboo......",
+".....oooobbbbllllllllbbbbboooo........",
+".........obbbbbbbbbbbbbbbo............",
+".........ojJJJJJJJJJJJJJjo............",
+".........ojjjjjjjyyjjjjjjo............",
+".........ojjjjjjjyyjjjjjjo............",
+".........ojjjjjjjjjjjjjjjo............",
+".........ojjjJjjjooojjJjjo............",
+".........ojjjjjjo...ojjjjo............",
+".........oj.j.jjo...oj.j.o............",
+".........obbbbbo....obbbbo............",
+".........obbbbbo....obbbbo............",
+"........obbbbbbo....obbbbbo...........",
+"........oooooooo....ooooooo...........",
+];
+
+const WOMBAT_MAP = [
+"....oo........oo....",
+"...oBBo......oBBo...",
+"..oBLLBo....oBLLBo..",
+"..oBLLBBooooBBLLBo..",
+"...oBBBBBBBBBBBBo...",
+"oPPoBBBBBBBBBBBBoPPo",
+"oPPPoBBBBBBBBBBoPPPo",
+"oPPPoBBBBBBBBBBoPPPo",
+".oPoBBBBBBBBBBBBoPo.",
+"..oBBBBBBBBBBBBBBo..",
+".oBBBBBBBBBBBBBBBBo.",
+".oBBBBBDDDDDDBBBBBo.",
+".oBBBBDDDDDDDDBBBBo.",
+".oBBBBDDDDDDDDBBBBo.",
+".oBBBBBDDDDDDBBBBBo.",
+"..oBBBBBBDDBBBBBBo..",
+"..oBBBoBBBBBBoBBBo..",
+"...oooDDo..oDDooo...",
+"....oDDDo..oDDDo....",
+".....ooo....ooo.....",
+];
+
+const WOMBAT_WIN_MAP = [
+"....oo........oo....",
+"...oBBo......oBBo...",
+"..oBLLBo....oBLLBo..",
+"..oBLLBBooooBBLLBo..",
+"oPPoBBBBBBBBBBBBoPPo",
+"oPPPoBBBBBBBBBBoPPPo",
+"oPPPoBkBBBBBBkBoPPPo",
+".oPoBBBBBDDBBBBBoPo.",
+"..oBBBBBDDDDBBBBoo..",
+".oBBBPPBBDDBBPPBBBo.",
+".oBBBPPBoBBoBPPBBBo.",
+".oBBBBBBoooowBBBBBo.",
+".oBBBBBBBBBBBBBBBBo.",
+".oBBBBBBBBBBBBBBBBo.",
+"..oBBBBBBBBBBBBBBo..",
+"..oBBBoBBBBBBoBBBo..",
+"...oooDDo..oDDooo...",
+"....oDDDo..oDDDo....",
+".....ooo....ooo.....",
+];
+
+/* playable shark — back view with gloves and jorts */
+const SHARK_HERO_MAP = [
+".........oo.........",
+"........obbo........",
+"........obbo........",
+".......obbbbo.......",
+"...oobbobbbbobboo...",
+"oPPobbbbbbbbbbbboPPo",
+"oPPPobbbbbbbbbboPPPo",
+"oPPPobbbbbbbbbboPPPo",
+".oPobbbbbbbbbbbboPo.",
+"..obbbbbbbbbbbbbbo..",
+".obbbbbbbbbbbbbbbbo.",
+".obbbbdddddddbbbbbo.",
+".obbbjJJJJJJJJjbbbo.",
+".obbbjjjjjjjjjjbbbo.",
+".obbbjjjjjjjjjjbbbo.",
+"..obbjj.jjjj.jjbbo..",
+"..obbojbbbbbbjobbo..",
+"...ooobbo..obbooo...",
+"....obbbo..obbbo....",
+".....ooo....ooo.....",
+];
+
+const BURGER_MAP = [
+"...oooooooo...",
+"..onnnnnnnno..",
+".onnwnnwnnwno.",
+".onnnnnnnnnno.",
+".oggogggogggo.",
+"occccccccccco",
+".opppppppppo.",
+".onnnnnnnnno..",
+"..oooooooo....",
+];
+
+function drawSprite(svgEl, map){
+  const h = map.length, w = Math.max(...map.map(r=>r.length));
+  svgEl.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svgEl.setAttribute('shape-rendering','crispEdges');
+  let out = '';
+  map.forEach((row,y)=>{
+    for(let x=0;x<row.length;x++){
+      const c = PAL[row[x]];
+      if(c) out += `<rect x="${x}" y="${y}" width="1" height="1" fill="${c}"/>`;
+    }
+  });
+  svgEl.innerHTML = out;
+}
+function burgerSVGHTML(){
+  const h = BURGER_MAP.length, w = Math.max(...BURGER_MAP.map(r=>r.length));
+  let out = `<svg viewBox="0 0 ${w} ${h}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">`;
+  BURGER_MAP.forEach((row,y)=>{
+    for(let x=0;x<row.length;x++){
+      const c = PAL[row[x]];
+      if(c) out += `<rect x="${x}" y="${y}" width="1" height="1" fill="${c}"/>`;
+    }
+  });
+  return out + '</svg>';
+}
+
+const BRUISE_SPOTS = [
+  [12,8],[23,8],[17,6],[3,7],[33,7],[14,18],[21,20],[10,16],[26,17],
+  [4,13],[32,13],[17,11],[12,26],[22,26]
+];
+function drawBruises(svgEl){
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.id = 'bruiseLayer';
+  let out = '';
+  BRUISE_SPOTS.forEach(([x,y])=>{
+    out += `<g class="bruise" opacity="0">
+      <rect x="${x}" y="${y}" width="2" height="2" fill="#B79CD9" opacity=".9"/>
+      <rect x="${x+1}" y="${y}" width="1" height="1" fill="#9678BE"/>
+      <rect x="${x}" y="${y+1}" width="1" height="1" fill="#D3C0EA"/>
+    </g>`;
+  });
+  g.innerHTML = out;
+  svgEl.appendChild(g);
+}
+
+drawSprite($('bossSvg'), SHARK_MAP);
+drawBruises($('bossSvg'));
+drawSprite($('startShark'), SHARK_MAP);
+drawSprite($('startWombat'), WOMBAT_WIN_MAP);
+drawSprite($('loseShark'), SHARK_MAP);
+drawSprite($('fighterWombat'), WOMBAT_WIN_MAP);
+drawSprite($('fighterShark'), SHARK_HERO_MAP);
+function drawHero(){
+  drawSprite($('heroSvg'), selectedHero === 'shark' ? SHARK_HERO_MAP : WOMBAT_MAP);
+  drawSprite($('winHero'), selectedHero === 'shark' ? SHARK_HERO_MAP : WOMBAT_WIN_MAP);
+  $('heroHpName').textContent = selectedHero === 'shark' ? '🥊 SHARK (YOU)' : '🥊 WOMBAT';
+  $('pcName').textContent = selectedHero === 'shark' ? 'CHAMPION SHARK' : 'CHAMPION WOMBAT';
+}
+drawHero();
+
+/* ---------- chiptune sounds ---------- */
+let actx = null;
+function beep(freq, dur, type='square', vol=0.1){
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol, actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+    o.connect(g).connect(actx.destination);
+    o.start(); o.stop(actx.currentTime + dur);
+  }catch(e){}
+}
+const sndLock   = () => beep(740,.1);
+const sndCorrect= () => { beep(660,.09); setTimeout(()=>beep(880,.09),100); setTimeout(()=>beep(1175,.14),200); };
+const sndPunch  = () => { beep(150,.16,'square',.16); setTimeout(()=>beep(95,.18,'square',.14),60); };
+const sndMega   = () => { beep(180,.12,'square',.18); setTimeout(()=>beep(120,.14,'square',.18),70);
+                          setTimeout(()=>beep(70,.3,'sawtooth',.18),140); };
+const sndChomp  = () => { beep(320,.08,'sawtooth',.15); setTimeout(()=>beep(110,.22,'square',.16),80); };
+const sndFail   = () => { beep(280,.18,'square',.1); setTimeout(()=>beep(190,.3,'square',.1),170); };
+const sndTick   = () => beep(1050,.05,'square',.05);
+const sndBonus  = () => { [784,988,1175].forEach((f,i)=>setTimeout(()=>beep(f,.1),i*90)); };
+const sndWin    = () => [523,659,784,1047,784,1047,1319].forEach((f,i)=>setTimeout(()=>beep(f,.18),i*140));
+const sndLose   = () => [392,330,262,196].forEach((f,i)=>setTimeout(()=>beep(f,.25),i*220));
+const sndFriend = () => [523,659,523,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.16,'triangle',.12),i*160));
+
+/* ---------- Hangul jamo similarity ---------- */
+const CHO = "ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
+const JUNG = "ㅏㅐㅑㅒㅓㅔㅕㅖㅗㅘㅙㅚㅛㅜㅝㅞㅟㅠㅡㅢㅣ";
+const JONG = "\0ㄱㄲㄳㄴㄵㄶㄷㄹㄺㄻㄼㄽㄾㄿㅀㅁㅂㅄㅅㅆㅇㅈㅊㅋㅌㅍㅎ";
+function toJamo(s){
+  let out = "";
+  for(const ch of s){
+    const c = ch.charCodeAt(0);
+    if(c >= 0xAC00 && c <= 0xD7A3){
+      const i = c - 0xAC00;
+      out += CHO[Math.floor(i/588)] + JUNG[Math.floor((i%588)/28)];
+      const j = i % 28;
+      if(j) out += JONG[j];
+    } else out += ch;
+  }
+  return out;
+}
+const normalize = s => s.replace(/[\s.,!?~'"’“”]/g,'');
+function levenshtein(a,b){
+  const m=a.length,n=b.length;
+  if(!m) return n; if(!n) return m;
+  let prev = Array.from({length:n+1},(_,i)=>i);
+  for(let i=1;i<=m;i++){
+    const cur=[i];
+    for(let j=1;j<=n;j++){
+      cur[j] = Math.min(prev[j]+1, cur[j-1]+1, prev[j-1] + (a[i-1]===b[j-1]?0:1));
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+function similarity(heard, target){
+  const a = toJamo(normalize(heard)), b = toJamo(normalize(target));
+  if(!b.length) return 0;
+  return 1 - levenshtein(a,b) / Math.max(a.length, b.length);
+}
+
+/* ---------- HP / battle ---------- */
+function updateHP(){
+  const max = maxDamage();
+  const hp = Math.max(0, max - damage);
+  const pct = Math.round(100 * hp / max);
+  $('hpText').textContent = `HP ${hp}/${max}`;
+  const fill = $('hpFill');
+  fill.style.width = pct + "%";
+  fill.classList.toggle('mid', pct <= 60 && pct > 30);
+  fill.classList.toggle('low', pct <= 30);
+  const bruises = document.querySelectorAll('#bruiseLayer .bruise');
+  const show = Math.min(bruises.length, Math.round((damage/max) * bruises.length));
+  bruises.forEach((b,i)=> b.setAttribute('opacity', i < show ? 1 : 0));
+}
+function updateHeroHP(){
+  $('heroHpText').textContent = `HP ${heroHP}/${HERO_MAX[mode]}`;
+  $('heroHpFill').style.width = Math.max(0, 100 * heroHP / HERO_MAX[mode]) + '%';
+}
+function spawnPow(text, cls, leftPct, topPct){
+  const pow = document.createElement('div');
+  pow.className = 'pow' + (cls ? ' ' + cls : '');
+  pow.textContent = text;
+  pow.style.left = leftPct + Math.random()*8 + '%';
+  pow.style.top  = topPct + Math.random()*10 + '%';
+  $('stage').appendChild(pow);
+  setTimeout(()=>pow.remove(), 800);
+}
+function punchBoss(mega){
+  const hero = $('heroBox'), boss = $('bossBox'), stage = $('stage');
+  mega ? sndMega() : sndPunch();
+  hero.classList.remove('punch','megapunch','hurt','shove'); void hero.offsetWidth;
+  hero.classList.add(mega ? 'megapunch' : 'punch');
+  setTimeout(()=>{
+    boss.classList.remove('hit','megahit','lunge','taunt','push','pat'); void boss.offsetWidth;
+    boss.classList.add(mega ? 'megahit' : 'hit');
+    if(mega){
+      stage.classList.remove('shake'); void stage.offsetWidth; stage.classList.add('shake');
+      const f = $('flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+      spawnPow('CRITICAL!!','crit',30,26);
+      setTimeout(()=>spawnPow('MEGA PUNCH!','crit',34,38), 200);
+    } else {
+      spawnPow(['POW!','BAM!','WHAM!'][Math.floor(Math.random()*3)],'',40,26);
+    }
+    updateHP();
+  }, mega ? 320 : 220);
+}
+function burgerPunch(){
+  sndBonus();
+  const stage = $('stage');
+  const burger = document.createElement('div');
+  burger.className = 'burger';
+  burger.innerHTML = burgerSVGHTML();
+  stage.appendChild(burger);
+  setTimeout(()=>{
+    burger.remove();
+    sndMega();
+    const boss = $('bossBox');
+    boss.classList.remove('hit','megahit','lunge','taunt','push','pat'); void boss.offsetWidth; boss.classList.add('megahit');
+    stage.classList.remove('shake'); void stage.offsetWidth; stage.classList.add('shake');
+    spawnPow('WHOPPER JR.','crit',26,22);
+    setTimeout(()=>spawnPow('PUNCH!!','crit',38,34), 180);
+    updateHP();
+  }, 620);
+}
+function sharkAttack(){
+  if(heroHP <= 0) return;
+  sndChomp();
+  const boss = $('bossBox'), hero = $('heroBox');
+  boss.classList.remove('hit','megahit','lunge','taunt','push','pat'); void boss.offsetWidth; boss.classList.add('lunge');
+  setTimeout(()=>{
+    hero.classList.remove('punch','megapunch','hurt','shove'); void hero.offsetWidth; hero.classList.add('hurt');
+    spawnPow('CHOMP!','chomp',14,46);
+    heroHP = Math.max(0, heroHP - SHARK_ATTACK_DMG);
+    updateHeroHP();
+    if(heroHP <= 0) gameOver();
+  }, 280);
+}
+function sharkTaunt(){
+  const boss = $('bossBox');
+  boss.classList.remove('hit','megahit','lunge','taunt','push','pat'); void boss.offsetWidth; boss.classList.add('taunt');
+  spawnPow('HA HA!','chomp',56,22);
+}
+
+/* ---------- step pills / counter ---------- */
+function setStepUI(step){
+  ['pill1','pill2','pill3'].forEach((id,i)=>{
+    const el = $(id);
+    el.classList.toggle('on', i+1 === step);
+    el.classList.toggle('done', step !== 0 && i+1 < step);
+  });
+  const stepTxt = mode === 'easy'
+    ? (step === 0 ? ' · ⚡BONUS' : ` · Step <b>${step}/3</b>`)
+    : (step === 0 ? ' · ⚡BONUS' : '');
+  $('cardCount').innerHTML = `Card <b>${cardIdx+1}/${CARDS.length}</b>${stepTxt}`;
+}
+
+/* ---------- STEP 1: drag & swap blocks ---------- */
+function shuffled(arr){
+  const a = [...arr];
+  do {
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]] = [a[j],a[i]];
+    }
+  } while(a.length > 1 && a.join('|') === arr.join('|'));
+  return a;
+}
+function renderBlocks(){
+  const row = $('blocksRow');
+  row.innerHTML = '';
+  blockOrder.forEach((text, i) => {
+    const b = document.createElement('div');
+    b.className = 'block';
+    b.textContent = text;
+    b.dataset.idx = i;
+    b.addEventListener('pointerdown', onDragStart);
+    row.appendChild(b);
+  });
+}
+let dragIdx = null, ghost = null, hoverEl = null;
+function onDragStart(e){
+  if(phase !== 'build') return;
+  e.preventDefault();
+  const el = e.currentTarget;
+  dragIdx = +el.dataset.idx;
+  el.classList.add('dragging');
+  ghost = el.cloneNode(true);
+  ghost.classList.add('ghost');
+  ghost.classList.remove('dragging');
+  document.body.appendChild(ghost);
+  moveGhost(e.clientX, e.clientY);
+  window.addEventListener('pointermove', onDragMove);
+  window.addEventListener('pointerup', onDragEnd);
+}
+function moveGhost(x,y){ if(ghost){ ghost.style.left = x+'px'; ghost.style.top = y+'px'; } }
+function onDragMove(e){
+  moveGhost(e.clientX, e.clientY);
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const target = under && under.closest ? under.closest('.block:not(.dragging):not(.ghost)') : null;
+  if(hoverEl && hoverEl !== target) hoverEl.classList.remove('swap-target');
+  hoverEl = target;
+  if(hoverEl) hoverEl.classList.add('swap-target');
+}
+function onDragEnd(){
+  window.removeEventListener('pointermove', onDragMove);
+  window.removeEventListener('pointerup', onDragEnd);
+  if(ghost){ ghost.remove(); ghost = null; }
+  if(hoverEl){
+    const targetIdx = +hoverEl.dataset.idx;
+    [blockOrder[dragIdx], blockOrder[targetIdx]] = [blockOrder[targetIdx], blockOrder[dragIdx]];
+    renderBlocks();
+    checkOrder();
+  } else {
+    const dragged = document.querySelector('.block.dragging');
+    if(dragged) dragged.classList.remove('dragging');
+  }
+  hoverEl = null; dragIdx = null;
+}
+function checkOrder(){
+  const card = CARDS[cardIdx];
+  if(blockOrder.join('|') === card.blocks.join('|')){
+    phase = null;
+    sndCorrect();
+    document.querySelectorAll('.block').forEach(b => b.classList.add('locked'));
+    setTimeout(()=>startSpeak('read'), 800);
+  } else {
+    sndLock();
+  }
+}
+
+/* ---------- SPEAK STEPS ---------- */
+function startSpeak(kind){
+  speakKind = kind;
+  phase = kind;
+  bestScore = 0;
+  speakCard = (kind === 'bonus') ? speakCard : CARDS[cardIdx];
+  $('phase1').classList.add('hidden');
+  $('phaseWrestle').classList.remove('show');
+  const p2 = $('phase2');
+  p2.classList.add('show');
+  const title = $('speakTitle'), target = $('targetSentence');
+  title.classList.remove('danger-title','bonus-title');
+  target.classList.remove('english-only','bonus-target');
+  $('memoryTag').classList.add('hidden');
+  $('redoBtn').classList.toggle('hidden', kind === 'bonus');
+  $('taskCard').classList.toggle('bonus-mode', kind === 'bonus');
+
+  if(kind === 'read'){
+    setStepUI(2);
+    title.textContent = "NOW SPEAK IT! HURRY!!";
+    $('speakSub').textContent = "Read the Korean out loud:";
+    target.textContent = speakCard.blocks.join(' ');
+    startAttackLoop(); // fresh attack countdown each step / retry
+  } else if(kind === 'memory'){
+    setStepUI(3);
+    title.textContent = "FINAL ROUND! FROM MEMORY!!";
+    title.classList.add('danger-title');
+    $('speakSub').textContent = "Only the English is shown… say it in Korean!";
+    target.textContent = '"' + speakCard.english + '"';
+    target.classList.add('english-only');
+    $('memoryTag').classList.remove('hidden');
+    startAttackLoop();
+  } else if(kind === 'hard'){
+    setStepUI(0);
+    $('cardCount').innerHTML = `Card <b>${cardIdx+1}/${CARDS.length}</b> · 😈HARD`;
+    title.textContent = "SPEAK IT IN KOREAN!!";
+    title.classList.add('danger-title');
+    $('speakSub').textContent = speakCard.situation;
+    target.textContent = '"' + speakCard.english + '"';
+    target.classList.add('english-only');
+    startAttackLoop();
+  } else { // bonus
+    setStepUI(0);
+    title.textContent = "💥 POW!! BONUS ROUND!! 💥";
+    title.classList.add('bonus-title');
+    $('speakSub').textContent = "A card you already beat is back! Say it in Korean for a WHOPPER JR. PUNCH!";
+    target.textContent = '"' + speakCard.english + '"';
+    target.classList.add('english-only','bonus-target');
+  }
+  $('resultMsg').textContent = ''; $('resultMsg').className = 'result-msg';
+  $('retryBtn').classList.add('hidden');
+  startTimer(kind === 'bonus' ? BONUS_SECONDS : SPEAK_SECONDS);
+  startListening();
+}
+function startTimer(secs){
+  clearInterval(timerInt);
+  timeLeft = secs;
+  drawTimer(secs);
+  $('timerFill').classList.remove('low');
+  if(secs <= BONUS_SECONDS) $('timerFill').classList.add('low');
+  timerInt = setInterval(()=>{
+    if(paused) return;
+    timeLeft--;
+    drawTimer(secs);
+    if(timeLeft <= 5 && timeLeft > 0){ $('timerFill').classList.add('low'); sndTick(); }
+    if(timeLeft <= 0){
+      clearInterval(timerInt);
+      onSpeakFail("TIME'S UP!!");
+    }
+  }, 1000);
+}
+function drawTimer(total){
+  $('timerNum').textContent = timeLeft;
+  $('timerFill').style.width = (100 * timeLeft / total) + '%';
+}
+function startListening(){
+  if(paused) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){
+    $('micStatus').innerHTML = "😿 This browser can't hear you (try Chrome).<br>Say it out loud, then tap below!";
+    $('manualBtn').classList.remove('hidden');
+    return;
+  }
+  speakingActive = true;
+  $('micStatus').innerHTML = '<span class="mic-dot"></span>Listening…';
+  recog = new SR();
+  recog.lang = 'ko-KR';
+  recog.continuous = true;
+  recog.interimResults = true;
+  recog.onresult = (ev) => {
+    let heard = '';
+    for(let i = 0; i < ev.results.length; i++) heard += ev.results[i][0].transcript;
+    const score = similarity(heard, speakCard.blocks.join(''));
+    bestScore = Math.max(bestScore, score);
+    $('micStatus').innerHTML = '<span class="mic-dot"></span>Heard: <span class="heard">' + (heard || '…') + '</span>';
+    if(bestScore >= PASS_SCORE) onSpeakSuccess();
+  };
+  recog.onerror = (ev) => {
+    if(ev.error === 'not-allowed' || ev.error === 'service-not-allowed'){
+      speakingActive = false;
+      $('micStatus').innerHTML = "🎤 Mic blocked! Allow the microphone,<br>or say it out loud and tap below.";
+      $('manualBtn').classList.remove('hidden');
+    }
+  };
+  recog.onend = () => { if(speakingActive && !paused && timeLeft > 0) { try{ recog.start(); }catch(e){} } };
+  try{ recog.start(); }catch(e){}
+}
+function stopListening(){
+  speakingActive = false;
+  if(recog){ try{ recog.onend = null; recog.stop(); }catch(e){} recog = null; }
+}
+function onSpeakSuccess(){
+  if(!['read','memory','hard','bonus'].includes(phase)) return;
+  const kind = phase;
+  phase = null;
+  clearInterval(timerInt);
+  stopListening();
+  $('manualBtn').classList.add('hidden');
+  sndCorrect();
+  const msg = $('resultMsg');
+  msg.className = 'result-msg good';
+  if(kind === 'read'){
+    damage += DMG_READ; cardDamage += DMG_READ;
+    msg.textContent = 'Nice reading! 잘했어요!';
+    punchBoss(false);
+    setTimeout(()=>startSpeak('memory'), 1500);
+  } else if(kind === 'memory'){
+    damage += DMG_MEMORY; cardDamage += DMG_MEMORY;
+    msg.textContent = 'From memory!! 대박!!';
+    punchBoss(true);
+    setTimeout(maybeBonus, 1800);
+  } else if(kind === 'hard'){
+    damage += DMG_HARD; cardDamage += DMG_HARD;
+    msg.textContent = 'Straight to Korean!! 미쳤다!!';
+    punchBoss(true);
+    setTimeout(maybeBonus, 1800);
+  } else { // bonus
+    damage += DMG_BONUS;
+    msg.textContent = 'BONUS!! 🍔 Whopper Jr. delivered!!';
+    burgerPunch();
+    setTimeout(nextCard, 1900);
+  }
+}
+function onSpeakFail(msg){
+  if(!['read','memory','hard','bonus'].includes(phase)) return;
+  const kind = phase;
+  phase = null;
+  stopListening();
+  $('manualBtn').classList.add('hidden');
+  if(kind === 'bonus'){
+    sndFail();
+    sharkTaunt();
+    $('speakTitle').textContent = "NO BONUS THIS TIME!";
+    $('resultMsg').textContent = 'The shark dodged the burger! On to the next card!';
+    $('resultMsg').className = 'result-msg bad';
+    $('micStatus').textContent = '';
+    setTimeout(nextCard, 1700);
+    return;
+  }
+  sndFail();
+  $('speakTitle').textContent = msg;
+  $('resultMsg').textContent = 'So close! You can do it! 화이팅!';
+  $('resultMsg').className = 'result-msg bad';
+  $('micStatus').textContent = '';
+  $('retryBtn').classList.remove('hidden');
+}
+$('retryBtn').addEventListener('click', () => startSpeak(speakKind));
+$('manualBtn').addEventListener('click', onSpeakSuccess);
+
+/* ---------- bonus round (only reviews completed cards) ---------- */
+function maybeBonus(){
+  if(cardIdx < 1){ nextCard(); return; }
+  const pick = Math.floor(Math.random() * cardIdx);
+  speakCard = CARDS[pick];
+  startSpeak('bonus');
+}
+
+/* ---------- redo current card ---------- */
+$('redoBtn').addEventListener('click', () => {
+  if(phase === 'bonus' || phase === 'wrestle') return;
+  clearInterval(timerInt);
+  stopListening();
+  damage = Math.max(0, damage - cardDamage);
+  cardDamage = 0;
+  updateHP();
+  sndLock();
+  loadCard();
+});
+
+/* ---------- shark counter-attack loop (both modes) ---------- */
+const attackablePhases = () => mode === 'hard' ? ['hard'] : ['build','read','memory'];
+function startAttackLoop(){
+  clearInterval(attackInt);
+  attackInt = setInterval(()=>{
+    if(!paused && attackablePhases().includes(phase)) sharkAttack();
+  }, ATTACK_EVERY[mode]);
+}
+function stopAttackLoop(){ clearInterval(attackInt); attackInt = null; }
+
+/* ---------- card flow ---------- */
+function loadCard(){
+  const card = CARDS[cardIdx];
+  cardDamage = 0;
+  $('phase2').classList.remove('show');
+  $('phaseWrestle').classList.remove('show');
+  $('taskCard').classList.remove('bonus-mode');
+  $('redoBtn').classList.remove('hidden');
+  startAttackLoop(); // fresh countdown at the start of every card
+  if(mode === 'easy'){
+    phase = 'build';
+    setStepUI(1);
+    $('stepsRow').classList.remove('hidden');
+    $('situationText').textContent = card.situation;
+    $('englishText').textContent = '"' + card.english + '"';
+    $('keywordsText').innerHTML = card.keywords.map(k => '<i>' + k[1] + '</i>' + k[0]).join(' &nbsp; ');
+    blockOrder = shuffled(card.blocks);
+    renderBlocks();
+    $('phase1').classList.remove('hidden');
+  } else {
+    $('stepsRow').classList.add('hidden');
+    $('phase1').classList.add('hidden');
+    speakCard = card;
+    startSpeak('hard');
+  }
+}
+function nextCard(){
+  cardIdx++;
+  if(cardIdx >= CARDS.length){
+    startFinale();
+  } else {
+    loadCard();
+  }
+}
+
+/* ============================================================
+   FINALE: ARM WRESTLING MATCH (anime close-up — arms only)
+   ============================================================ */
+function pixLine(x1,y1,x2,y2,thick,color){
+  let out = '';
+  const steps = Math.max(Math.abs(x2-x1), Math.abs(y2-y1), 1);
+  for(let i=0;i<=steps;i++){
+    const x = Math.round(x1+(x2-x1)*i/steps), y = Math.round(y1+(y2-y1)*i/steps);
+    out += `<rect x="${x-Math.floor(thick/2)}" y="${y-Math.floor(thick/2)}" width="${thick}" height="${thick}" fill="${color}"/>`;
+  }
+  return out;
+}
+function drawWrestleScene(){
+  const OUT = PAL.o, TBL = '#7E5C3C', TBL_TOP = '#9A744E', TBL_HI = '#B58A5C';
+  const sharkArm = PAL.b, sharkShade = PAL.d;
+  const heroArm = selectedHero === 'shark' ? PAL.b : PAL.B;
+  const heroShade = selectedHero === 'shark' ? PAL.d : PAL.D;
+
+  /* static layer: table + upper arms (biceps) entering from the sides */
+  let s = '';
+  s += `<rect x="0" y="54" width="120" height="3" fill="${OUT}"/>`;
+  s += `<rect x="0" y="57" width="120" height="4" fill="${TBL_TOP}"/>`;
+  s += `<rect x="0" y="57" width="120" height="1" fill="${TBL_HI}"/>`;
+  s += `<rect x="0" y="61" width="120" height="17" fill="${TBL}"/>`;
+  /* shark bicep (left) — huge */
+  s += pixLine(-6,66,30,56,22,OUT);
+  s += pixLine(-6,66,30,56,18,sharkArm);
+  s += pixLine(-2,60,18,56,8,sharkShade);
+  /* hero bicep (right) */
+  s += pixLine(126,68,90,56,18,OUT);
+  s += pixLine(126,68,90,56,14,heroArm);
+  s += pixLine(122,62,102,57,6,heroShade);
+  /* elbow shadows on the table */
+  s += `<rect x="28" y="55" width="12" height="2" fill="rgba(34,26,56,.45)"/>`;
+  s += `<rect x="80" y="55" width="12" height="2" fill="rgba(34,26,56,.45)"/>`;
+  $('armsStatic').innerHTML = s;
+  drawArms(50);
+  $('armsSvg').style.transform = 'translateX(-50%)';
+}
+/* forearms pivot at their own elbows; the clasped grip travels on an arc.
+   pos=50 grip is straight up; pos→100 (player winning) it swings LEFT and down. */
+function drawArms(pos){
+  const OUT = PAL.o;
+  const sharkArm = PAL.b, sharkShade = PAL.d;
+  const heroArm = selectedHero === 'shark' ? PAL.b : PAL.B;
+  const heroShade = selectedHero === 'shark' ? PAL.d : PAL.D;
+  const angle = (50 - Math.max(0, Math.min(100, pos))) * 0.92; // deg, negative = left
+  const rad = angle * Math.PI / 180;
+  const gx = 60 + 36 * Math.sin(rad);
+  const gy = 54 - 36 * Math.cos(rad);
+  let g = '';
+  /* shark forearm: elbow (34,54) → grip */
+  g += pixLine(34,54,gx-3,gy+2,12,OUT);
+  g += pixLine(34,54,gx-3,gy+2,8,sharkArm);
+  /* hero forearm: elbow (86,54) → grip */
+  g += pixLine(86,54,gx+3,gy+2,12,OUT);
+  g += pixLine(86,54,gx+3,gy+2,8,heroArm);
+  /* clasped fists — interlocked block riding the grip point */
+  g += `<rect x="${gx-12}" y="${gy-9}" width="24" height="18" fill="${OUT}"/>`;
+  g += `<rect x="${gx-10}" y="${gy-7}" width="10" height="14" fill="${sharkArm}"/>`;
+  g += `<rect x="${gx}" y="${gy-7}" width="10" height="14" fill="${heroArm}"/>`;
+  g += `<rect x="${gx-10}" y="${gy-3}" width="10" height="1" fill="${sharkShade}"/>`;
+  g += `<rect x="${gx-10}" y="${gy+1}" width="10" height="1" fill="${sharkShade}"/>`;
+  g += `<rect x="${gx}" y="${gy-3}" width="10" height="1" fill="${heroShade}"/>`;
+  g += `<rect x="${gx}" y="${gy+1}" width="10" height="1" fill="${heroShade}"/>`;
+  g += `<rect x="${gx-8}" y="${gy-6}" width="3" height="2" fill="#FFFFFF" opacity=".8"/>`;
+  $('armsGroup').innerHTML = g;
+  /* camera: zoom in and track the fists as they head for the table */
+  const zoom = 1 + Math.abs(angle) / 95;
+  const track = -(gx - 60) * 0.85;
+  $('armsSvg').style.transform = `translateX(calc(-50% + ${track}px)) scale(${zoom})`;
+}
+function startFinale(){
+  stopAttackLoop();
+  clearInterval(timerInt);
+  stopListening();
+  phase = null;
+  clearMs = Date.now() - startTime; // clear time = deck completion; wrestle is a bonus epilogue
+  // finishing blow on the last of the boss HP
+  damage = maxDamage();
+  punchBoss(true);
+  setTimeout(startArmWrestle, 1400);
+}
+function startArmWrestle(){
+  phase = 'wrestle';
+  $('phase1').classList.add('hidden');
+  $('phase2').classList.remove('show');
+  $('taskCard').classList.remove('bonus-mode');
+  $('redoBtn').classList.add('hidden');
+  $('stepsRow').classList.add('hidden');
+  $('cardCount').innerHTML = '💪 <b>ARM WRESTLE</b>';
+  drawWrestleScene();
+  $('stage').classList.add('wrestle');
+  $('phaseWrestle').classList.add('show');
+  sndBonus();
+  spawnPow('FINAL CHALLENGE!','crit',26,40);
+
+  const need = Math.min(AW_NEED, CARDS.length);
+  aw = {
+    need, done: 0, pos: 50,
+    timeLeft: AW_TIME * 10,   // tenths of a second
+    pushAcc: 0,
+    queue: shuffled(CARDS.map((_,i)=>i)),
+    int: null, started: false, over: false
+  };
+  $('awCount').textContent = `0 / ${need} MATCHES`;
+  $('awPrompt').textContent = 'Ready…';
+  $('awOpts').innerHTML = '';
+  updateMeter();
+  $('awTimerFill').style.width = '100%';
+
+  setTimeout(()=>{
+    if(phase !== 'wrestle' || !aw || aw.over) return;
+    aw.started = true;
+    spawnPow('GO!!','crit',44,40);
+    nextAwQuestion();
+    aw.int = setInterval(awTick, 100);
+  }, 1200);
+}
+function updateMeter(){
+  const pos = Math.max(0, Math.min(100, aw ? aw.pos : 50));
+  $('amFill').style.width = pos + '%';
+  $('amMarker').style.left = pos + '%';
+  drawArms(pos); /* anime close-up: arms swing + camera tracks the winning side */
+}
+function awTick(){
+  if(paused || !aw || aw.over) return;
+  aw.timeLeft--;
+  $('awTimerFill').style.width = Math.max(0, 100 * aw.timeLeft / (AW_TIME*10)) + '%';
+  if(aw.timeLeft % 10 === 0 && aw.timeLeft <= 50 && aw.timeLeft > 0) sndTick();
+  aw.pushAcc += 100;
+  if(aw.pushAcc >= 2000){
+    aw.pushAcc = 0;
+    sharkPushMeter();
+  }
+  if(aw.timeLeft <= 0) endArmWrestle(false);
+}
+function sharkPushMeter(){
+  if(!aw || aw.over) return;
+  aw.pos -= AW_PUSH;
+  updateMeter();
+  sndChomp();
+  spawnPow('PUSH!','chomp',52,40);
+  spawnPow('💦','heart',62,18);
+  if(aw.pos <= 0) endArmWrestle(false);
+}
+function nextAwQuestion(){
+  if(!aw || aw.over) return;
+  if(!aw.queue.length) aw.queue = shuffled(CARDS.map((_,i)=>i));
+  const qIdx = aw.queue.shift();
+  const card = CARDS[qIdx];
+  aw.answer = card.blocks.join(' ');
+  $('awPrompt').textContent = '"' + card.english + '"';
+  // options: correct + up to 2 distractors
+  const opts = [aw.answer];
+  const others = shuffled(CARDS.map((_,i)=>i).filter(i=>i!==qIdx));
+  for(const i of others){
+    if(opts.length >= 3) break;
+    opts.push(CARDS[i].blocks.join(' '));
+  }
+  const box = $('awOpts');
+  box.innerHTML = '';
+  shuffled(opts).forEach(text => {
+    const b = document.createElement('button');
+    b.className = 'aw-opt';
+    b.textContent = text;
+    b.addEventListener('click', () => onAwTap(b, text));
+    box.appendChild(b);
+  });
+}
+function onAwTap(btn, text){
+  if(paused || !aw || aw.over || !aw.started) return;
+  if(text === aw.answer){
+    btn.classList.add('right');
+    sndCorrect();
+    aw.done++;
+    aw.pos += AW_MATCH_GAIN;
+    $('awCount').textContent = `${aw.done} / ${aw.need} MATCHES`;
+    updateMeter();
+    spawnPow('PULL!','crit',32,40);
+    spawnPow('💦','heart',54,16);
+    const f = $('flash'); f.classList.remove('go'); void f.offsetWidth; f.classList.add('go');
+    if(aw.done >= aw.need){ endArmWrestle(true); return; }
+    setTimeout(nextAwQuestion, 250);
+  } else {
+    btn.classList.add('wrong');
+    sndFail();
+    aw.pos -= AW_WRONG;
+    updateMeter();
+    if(aw.pos <= 0) endArmWrestle(false);
+  }
+}
+function endArmWrestle(won){
+  if(!aw || aw.over) return;
+  aw.over = true;
+  clearInterval(aw.int);
+  phase = null;
+  $('awOpts').innerHTML = '';
+  /* slam the grip all the way down on the winning side */
+  aw.pos = won ? 100 : 0;
+  updateMeter();
+  const stage = $('stage');
+  stage.classList.remove('shake'); void stage.offsetWidth; stage.classList.add('shake');
+  spawnPow('SLAM!!','crit', won ? 22 : 60, 44);
+  const hero = $('heroBox'), boss = $('bossBox');
+  setTimeout(()=>{
+    stage.classList.add('aftermath'); /* arms scene out, characters back in close-up */
+    if(won){
+      sharkUnlocked = true;
+      sndFriend();
+      $('awTitle').textContent = "🤝 RESPECT!!";
+      $('awPrompt').textContent = "The shark pats you on the shoulder… and FLEXES with you!!";
+      boss.classList.remove('hit','megahit','lunge','taunt','push','pat'); void boss.offsetWidth; boss.classList.add('pat');
+      spawnPow('PAT PAT','heart',38,30);
+      setTimeout(()=>{
+        hero.classList.add('flexing');
+        boss.classList.remove('pat'); boss.classList.add('flexing');
+        spawnPow('💪 FLEX!! 💪','heart',34,24);
+        spawnPow('NEW FRIEND!','heart',40,52);
+      }, 1100);
+      setTimeout(()=>winGame(true), 3000);
+    } else {
+      sndFail();
+      sharkTaunt();
+      $('awTitle').textContent = "THE SHARK WINS THE WRESTLE…";
+      $('awPrompt').textContent = "…but YOU still beat the game! He keeps his pride (and his jorts).";
+      setTimeout(()=>winGame(false), 2200);
+    }
+  }, 900);
+}
+
+/* ---------- win / lose / share ---------- */
+function fmtTime(ms){
+  const s = Math.floor(ms/1000);
+  return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+}
+function winGame(armWon){
+  const hero = $('heroBox'), boss = $('bossBox');
+  if(!armWon){
+    boss.classList.remove('hit','megahit','lunge','taunt','push','pat','flexing');
+    boss.classList.add('defeated');
+  }
+  sndWin();
+  setTimeout(()=>{
+    hero.classList.remove('flexing');
+    boss.classList.remove('flexing');
+    $('pcTime').textContent = fmtTime(clearMs);
+    $('pcMode').textContent = (mode === 'easy' ? 'EASY' : 'HARD') + ' MODE · ' + CARDS.length + ' CARDS';
+    $('pcComment').textContent = '"' + VICTORY_COMMENTS[Math.floor(Math.random()*VICTORY_COMMENTS.length)] + '"';
+    $('pcUnlock').classList.toggle('hidden', !armWon);
+    refreshFighterUI();
+    $('victoryScreen').classList.add('show');
+    confettiBurst();
+  }, armWon ? 600 : 1500);
+}
+function gameOver(){
+  stopAttackLoop();
+  clearInterval(timerInt);
+  stopListening();
+  phase = null;
+  sndLose();
+  $('gameOverScreen').classList.add('show');
+}
+$('continueBtn').addEventListener('click', () => {
+  $('gameOverScreen').classList.remove('show');
+  heroHP = HERO_MAX[mode];
+  updateHeroHP();
+  loadCard();
+});
+$('shareBtn').addEventListener('click', async () => {
+  const extra = sharkUnlocked ? ' I even ARM-WRESTLED the shark and won! 💪' : '';
+  const text = `🥊 I defeated the Shark Boss in ${fmtTime(clearMs)} (${mode.toUpperCase()} mode, ${CARDS.length} cards) on KoreanLearnin Boss Battle!${extra} 🦈💥`;
+  const btn = $('shareBtn');
+  try{
+    if(navigator.share){ await navigator.share({ text }); return; }
+    await navigator.clipboard.writeText(text);
+    btn.textContent = '✅ Copied!';
+  }catch(e){
+    try{ await navigator.clipboard.writeText(text); btn.textContent = '✅ Copied!'; }
+    catch(e2){ btn.textContent = '😿 Could not share'; }
+  }
+  setTimeout(()=>{ btn.textContent = '📤 Share'; }, 2200);
+});
+function confettiBurst(){
+  const colors = ['#B5E9EC','#FFC2D2','#FFE9A8','#C2EDCD','#A3CBE8','#E5D9FF'];
+  for(let i=0;i<70;i++){
+    const c = document.createElement('div');
+    c.className = 'confetti';
+    c.style.left = Math.random()*100 + 'vw';
+    const s = (5 + Math.floor(Math.random()*3)*3);
+    c.style.width = c.style.height = s + 'px';
+    c.style.background = colors[Math.floor(Math.random()*colors.length)];
+    c.style.animationDuration = (2.2 + Math.random()*2.5) + 's';
+    c.style.animationDelay = (Math.random()*1.5) + 's';
+    c.style.animationTimingFunction = 'steps(' + (10+Math.floor(Math.random()*10)) + ')';
+    document.body.appendChild(c);
+    setTimeout(()=>c.remove(), 6500);
+  }
+}
+
+/* ---------- pause / main menu ---------- */
+function pauseGame(){
+  if(paused) return;
+  if(!$('startScreen').classList.contains('hidden')) return;
+  if($('victoryScreen').classList.contains('show')) return;
+  if($('gameOverScreen').classList.contains('show')) return;
+  paused = true;
+  pausedAt = Date.now();
+  stopListening();
+  $('pauseScreen').classList.add('show');
+}
+function resumeGame(){
+  if(!paused) return;
+  paused = false;
+  startTime += Date.now() - pausedAt;
+  $('pauseScreen').classList.remove('show');
+  if(['read','memory','hard','bonus'].includes(phase)) startListening();
+}
+function cleanupGame(){
+  paused = false;
+  clearInterval(timerInt);
+  stopAttackLoop();
+  stopListening();
+  if(aw){ clearInterval(aw.int); aw = null; }
+  phase = null;
+  $('pauseScreen').classList.remove('show');
+  $('phase2').classList.remove('show');
+  $('phaseWrestle').classList.remove('show');
+  $('taskCard').classList.remove('bonus-mode');
+  $('stage').classList.remove('wrestle','aftermath');
+  ['heroBox','bossBox'].forEach(id=>{
+    $(id).classList.remove('punch','megapunch','hurt','shove','hit','megahit','lunge','taunt','push','pat','flexing','defeated');
+  });
+}
+function goToMenu(){
+  cleanupGame();
+  $('victoryScreen').classList.remove('show');
+  refreshFighterUI();
+  $('startScreen').classList.remove('hidden');
+}
+$('pauseBtn').addEventListener('click', pauseGame);
+$('resumeBtn').addEventListener('click', resumeGame);
+$('restartBtn').addEventListener('click', () => { cleanupGame(); startGame(mode); });
+$('menuBtn').addEventListener('click', goToMenu);
+$('menuBtn2').addEventListener('click', goToMenu);
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape'){ paused ? resumeGame() : pauseGame(); }
+});
+
+/* ---------- fighter select ---------- */
+function refreshFighterUI(){
+  const sharkBtn = $('pickShark');
+  sharkBtn.classList.toggle('locked', !sharkUnlocked);
+  $('sharkLockNote').textContent = sharkUnlocked ? '✅ Unlocked!' : '🔒 Win the arm wrestle!';
+  if(!sharkUnlocked && selectedHero === 'shark') selectedHero = 'wombat';
+  $('pickWombat').classList.toggle('sel', selectedHero === 'wombat');
+  sharkBtn.classList.toggle('sel', selectedHero === 'shark');
+}
+$('pickWombat').addEventListener('click', () => { selectedHero = 'wombat'; sndLock(); refreshFighterUI(); });
+$('pickShark').addEventListener('click', () => {
+  if(!sharkUnlocked){ sndFail(); return; }
+  selectedHero = 'shark'; sndLock(); refreshFighterUI();
+});
+
+/* ---------- game start ---------- */
+function startGame(selectedMode){
+  mode = selectedMode;
+  cleanupGame();
+  cardIdx = 0; damage = 0; cardDamage = 0;
+  heroHP = HERO_MAX[mode];
+  startTime = Date.now();
+  drawHero();
+  $('victoryScreen').classList.remove('show');
+  $('gameOverScreen').classList.remove('show');
+  $('startScreen').classList.add('hidden');
+  updateHP();
+  updateHeroHP();
+  loadCard();
+}
+function unlockAV(){
+  beep(1,0.01,'sine',0.001);
+  if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+    navigator.mediaDevices.getUserMedia({audio:true}).then(s=>s.getTracks().forEach(t=>t.stop())).catch(()=>{});
+  }
+}
+$('easyBtn').addEventListener('click', () => { unlockAV(); startGame('easy'); });
+$('hardBtn').addEventListener('click', () => { unlockAV(); startGame('hard'); });
+$('playAgainBtn').addEventListener('click', () => { $('victoryScreen').classList.remove('show'); startGame(mode); });
+$('deckCount').textContent = CARDS.length + ' CARDS';
+refreshFighterUI();
+</script>
+</body>
+</html>
