@@ -653,6 +653,11 @@ header{display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .vs-row svg.mini{width:80px;}
 
 #deckList{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;max-width:320px;}
+/* Bonus Activities list mirrors the deck list layout; its button is an <a>. */
+#bonusList{display:flex;flex-direction:column;align-items:center;gap:14px;width:100%;max-width:320px;}
+#bonusList .deck-card{animation:cardRise .42s ease both;}
+#bonusList a.deck-half{text-decoration:none;}
+#bonusHead.hidden,#bonusList.hidden{display:none;}
 /* deck cards rise in with a gentle stagger when the start screen appears */
 #deckList .deck-card{animation:cardRise .42s ease both;}
 #deckList .deck-card:nth-child(1){animation-delay:.04s;}
@@ -1123,7 +1128,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:8px;}
   .lb-tab{padding:8px 6px;}
   .lb-tab-ic{font-size:18px;}
   /* let the start screen lay decks side by side to save vertical space */
-  #deckList{max-width:560px;}
+  #deckList,#bonusList{max-width:560px;}
 }
 
 /* ---- Wider landscape phones / phablets in landscape ---- */
@@ -1138,7 +1143,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:8px;}
   .wrap{max-width:640px;padding:18px 18px 48px;gap:16px;}
   .stage{height:330px;}
   .logo{font-size:13px;}
-  .deck-card,#deckList,.section-head{max-width:340px;}
+  .deck-card,#deckList,#bonusList,.section-head{max-width:340px;}
   .start h1{font-size:24px;}
   .login-box{max-width:420px;}
   .lb-panel{width:400px;}
@@ -1148,7 +1153,7 @@ header{display:flex;align-items:center;justify-content:space-between;gap:8px;}
 @media (min-width:1000px){
   .wrap{max-width:720px;}
   .stage{height:360px;}
-  #deckList,.deck-card,.section-head{max-width:360px;}
+  #deckList,#bonusList,.deck-card,.section-head{max-width:360px;}
 }
 
 /* ---- Desktop (≥1200px) ---- */
@@ -1271,6 +1276,12 @@ header{display:flex;align-items:center;justify-content:space-between;gap:8px;}
   </div>
   <!-- deck category cards, one per level -->
   <div id="deckList"></div>
+
+  <!-- bonus activities (top-level only) -->
+  <div class="section-head" id="bonusHead">
+    <div class="sh-title alt">BONUS<br>ACTIVITIES</div>
+  </div>
+  <div id="bonusList"></div>
  </div>
 </div>
 
@@ -1520,10 +1531,25 @@ function enterGame(authUser, profile){
   const nameEl = $('startUserName');
   if (nameEl) nameEl.textContent = name;
   // Stash the live user so the game can save stats and highlight "you" on the board.
+  // registeredAt (epoch ms) gates the Bonus Activities unlock. Prefer the
+  // Firestore createdAt; fall back to the Firebase Auth account creation time
+  // (present even for legacy/older accounts that predate the createdAt field).
+  let registeredAt = null;
+  try{
+    if (profile && profile.createdAt && typeof profile.createdAt.toMillis === 'function'){
+      registeredAt = profile.createdAt.toMillis();
+    } else if (profile && profile.createdAt && profile.createdAt.seconds){
+      registeredAt = profile.createdAt.seconds * 1000;
+    } else if (authUser && authUser.metadata && authUser.metadata.creationTime){
+      registeredAt = new Date(authUser.metadata.creationTime).getTime();
+    }
+  }catch(e){}
   window.KBB_USER = {
     uid: authUser.uid,
     displayName: name,
-    photoURL: (profile && profile.photoURL) || null
+    photoURL: (profile && profile.photoURL) || null,
+    registeredAt: registeredAt,
+    bonusOverride: !!(profile && profile.bonusOverride === true)
   };
   $('loginScreen').classList.add('hidden');
   $('startScreen').classList.remove('hidden');
@@ -4782,22 +4808,556 @@ const AB_WEEK1_DAYS = [
   ]},
 ];
 
+const AB_WEEK2_DAYS = [
+  { name:"Day 1", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"한국 드라마", say:"han-gook deu-rah-mah", meaning:"Korean drama" },
+      { pron:true, lang:'ko-KR', front:"한국 노래", say:"han-gook \"nd\"oh-rae", meaning:"Korean song" },
+      { pron:true, lang:'ko-KR', front:"한국 음식", say:"han-gook eum-sheek", meaning:"Korean food" },
+      { pron:true, lang:'ko-KR', front:"한국 사람", say:"han-gook sah-ram", meaning:"Korean person" },
+      { pron:true, lang:'ko-KR', front:"한국어 공부", say:"han-goo-guh gong-boo", meaning:"Korean study" },
+      { pron:true, lang:'ko-KR', front:"케이팝", say:"keh-ee-pahp", meaning:"K-pop" },
+      { pron:true, lang:'ko-KR', front:"아이돌", say:"ah-ee-dol", meaning:"idol" },
+      { pron:true, lang:'ko-KR', front:"남자 아이돌", say:"\"nd\"ahm-jah ah-ee-dol", meaning:"male idol" },
+      { pron:true, lang:'ko-KR', front:"여자 아이돌", say:"yuh-jah ah-ee-dol", meaning:"female idol" },
+      { pron:true, lang:'ko-KR', front:"노래방", say:"\"nd\"oh-rae-bahng", meaning:"karaoke room" },
+      { pron:true, lang:'ko-KR', front:"팬미팅", say:"pen-mee-teeng", meaning:"fan meeting" },
+      { pron:true, lang:'ko-KR', front:"콘서트", say:"kon-suh-teu", meaning:"concert" },
+      { pron:true, lang:'ko-KR', front:"응원봉", say:"eung-won-bong", meaning:"light stick" },
+      { pron:true, lang:'ko-KR', front:"포토카드", say:"poh-toh-kah-deu", meaning:"photo card" },
+      { pron:true, lang:'ko-KR', front:"앨범", say:"el-bum", meaning:"album" },
+      { pron:true, lang:'ko-KR', front:"뮤직비디오", say:"myoo-jeek-bee-dee-oh", meaning:"music video" },
+      { pron:true, lang:'ko-KR', front:"춤", say:"choom", meaning:"dance" },
+      { pron:true, lang:'ko-KR', front:"노래", say:"\"nd\"oh-rae", meaning:"song" },
+      { pron:true, lang:'ko-KR', front:"가수", say:"\"k\"ah-soo", meaning:"singer" },
+      { pron:true, lang:'ko-KR', front:"배우", say:"\"p\"ae-woo", meaning:"actor" },
+      { pron:true, lang:'ko-KR', front:"주인공", say:"\"ch\"oo-een-gong", meaning:"main character" },
+      { pron:true, lang:'ko-KR', front:"남자 주인공", say:"\"nd\"ahm-jah \"ch\"oo-een-gong", meaning:"male lead" },
+      { pron:true, lang:'ko-KR', front:"여자 주인공", say:"yuh-jah \"ch\"oo-een-gong", meaning:"female lead" },
+      { pron:true, lang:'ko-KR', front:"사랑해요", say:"sah-rahng-hae-yoh", meaning:"I love you" },
+      { pron:true, lang:'ko-KR', front:"좋아해요", say:"\"ch\"oh-ah-hae-yoh", meaning:"I like you" },
+      { pron:true, lang:'ko-KR', front:"보고 싶어요", say:"\"p\"oh-goh shee-puh-yoh", meaning:"I miss you" },
+      { pron:true, lang:'ko-KR', front:"너무 좋아요", say:"\"nd\"uh-moo \"ch\"oh-ah-yoh", meaning:"It's so good" },
+      { pron:true, lang:'ko-KR', front:"진짜 좋아요", say:"\"ch\"een-jjah \"ch\"oh-ah-yoh", meaning:"I really like it" },
+      { pron:true, lang:'ko-KR', front:"멋있어요", say:"\"mb\"uh-shee-ssuh-yoh", meaning:"It's cool" },
+      { pron:true, lang:'ko-KR', front:"귀여워요", say:"\"k\"wee-yuh-wuh-yoh", meaning:"It's cute" },
+      { pron:true, lang:'ko-KR', front:"대박", say:"\"t\"ae-bahk", meaning:"amazing / awesome" },
+      { pron:true, lang:'ko-KR', front:"안녕하세요", say:"ahn-nyuhng-ha-seh-yoh", meaning:"hello" },
+      { pron:true, lang:'ko-KR', front:"감사합니다", say:"gahm-sah-hahm-nee-dah", meaning:"thank you" },
+      { pron:true, lang:'ko-KR', front:"맛있어요", say:"\"mb\"ah-shee-ssuh-yoh", meaning:"it's delicious" },
+      { pron:true, lang:'ko-KR', front:"김치", say:"\"k\"eem-chee", meaning:"kimchi" },
+      { pron:true, lang:'ko-KR', front:"비빔밥", say:"\"p\"ee-beem-bahp", meaning:"bibimbap" },
+      { pron:true, lang:'ko-KR', front:"불고기", say:"\"p\"ool-goh-gee", meaning:"bulgogi" },
+      { pron:true, lang:'ko-KR', front:"떡볶이", say:"ttuhk-boh-kkee", meaning:"tteokbokki" },
+      { pron:true, lang:'ko-KR', front:"라면", say:"Lah-myuhn", meaning:"ramen" },
+      { pron:true, lang:'ko-KR', front:"한복", say:"han-bok", meaning:"hanbok" },
+      { pron:true, lang:'ko-KR', front:"설날", say:"\"s\"ul-lal", meaning:"Lunar New Year" },
+      { pron:true, lang:'ko-KR', front:"추석", say:"choo-suhk", meaning:"Chuseok" },
+      { pron:true, lang:'ko-KR', front:"태권도", say:"tae-gwon-doh", meaning:"taekwondo" },
+      { pron:true, lang:'ko-KR', front:"한강", say:"han-gahng", meaning:"Han River" },
+      { pron:true, lang:'ko-KR', front:"서울", say:"\"suh\"-ool", meaning:"Seoul" },
+      { pron:true, lang:'ko-KR', front:"부산", say:"\"p\"oo-sahn", meaning:"Busan" },
+      { pron:true, lang:'ko-KR', front:"제주도", say:"\"ch\"eh-joo-doh", meaning:"Jeju Island" },
+      { pron:true, lang:'ko-KR', front:"명동", say:"\"my\"uhng-dong", meaning:"Myeongdong" },
+      { pron:true, lang:'ko-KR', front:"홍대", say:"hong-dae", meaning:"Hongdae" },
+  ]},
+  { name:"Day 2", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"한국 노래", say:"hang-goong \"nd\"oh-rae", meaning:"Korean song" },
+      { pron:true, lang:'ko-KR', front:"한국 음식", say:"hang-goog-geum-sheek", meaning:"Korean food" },
+      { pron:true, lang:'ko-KR', front:"한국 문화", say:"hang-goong \"mb\"oon-hwah", meaning:"Korean culture" },
+      { pron:true, lang:'ko-KR', front:"한국 드라마", say:"hang-gook \"t\"eu-rah-mah", meaning:"Korean drama" },
+      { pron:true, lang:'ko-KR', front:"한국 영화", say:"hang-goong yuhng-hwah", meaning:"Korean movie" },
+      { pron:true, lang:'ko-KR', front:"케이팝", say:"keh-ee-pahp", meaning:"K-pop" },
+      { pron:true, lang:'ko-KR', front:"아이돌", say:"ah-ee-dol", meaning:"idol" },
+      { pron:true, lang:'ko-KR', front:"노래방", say:"\"nd\"oh-rae-bahng", meaning:"karaoke room" },
+      { pron:true, lang:'ko-KR', front:"콘서트", say:"kon-suh-teu", meaning:"concert" },
+      { pron:true, lang:'ko-KR', front:"팬미팅", say:"pen-mee-teeng", meaning:"fan meeting" },
+      { pron:true, lang:'ko-KR', front:"응원봉", say:"eung-won-bong", meaning:"light stick" },
+      { pron:true, lang:'ko-KR', front:"포토카드", say:"poh-toh-kah-deu", meaning:"photo card" },
+      { pron:true, lang:'ko-KR', front:"앨범", say:"el-bum", meaning:"album" },
+      { pron:true, lang:'ko-KR', front:"신곡", say:"sheeng-gok", meaning:"new song" },
+      { pron:true, lang:'ko-KR', front:"뮤직비디오", say:"myoo-jeek-bee-dee-oh", meaning:"music video" },
+      { pron:true, lang:'ko-KR', front:"노래 연습", say:"\"nd\"o-rae yuhn-seup", meaning:"singing practice" },
+      { pron:true, lang:'ko-KR', front:"춤 연습", say:"choom yuhn-seup", meaning:"dance practice" },
+      { pron:true, lang:'ko-KR', front:"남자 아이돌", say:"\"nd\"ahm-jah ah-ee-dol", meaning:"male idol" },
+      { pron:true, lang:'ko-KR', front:"여자 아이돌", say:"yuh-jah ah-ee-dol", meaning:"female idol" },
+      { pron:true, lang:'ko-KR', front:"최애", say:"chweh-eh", meaning:"bias / favorite idol" },
+      { pron:true, lang:'ko-KR', front:"팬카페", say:"pen-ggah-peh", meaning:"fan café" },
+      { pron:true, lang:'ko-KR', front:"라이브 방송", say:"rah-ee-beu \"p\"ahng-song", meaning:"live broadcast" },
+      { pron:true, lang:'ko-KR', front:"좋아요", say:"\"ch\"o-ah-yoh", meaning:"I like it / good" },
+      { pron:true, lang:'ko-KR', front:"너무 좋아요", say:"\"nd\"uh-moo \"ch\"o-ah-yoh", meaning:"I like it so much" },
+      { pron:true, lang:'ko-KR', front:"진짜 좋아요", say:"\"ch\"een-jjah \"ch\"o-ah-yoh", meaning:"I really like it" },
+  ]},
+  { name:"Day 3", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"김치", say:"\"k\"eem-chee", meaning:"kimchi" },
+      { pron:true, lang:'ko-KR', front:"김밥", say:"\"k\"eem-bahp", meaning:"kimbap" },
+      { pron:true, lang:'ko-KR', front:"비빔밥", say:"\"p\"ee-beem-bahp", meaning:"bibimbap" },
+      { pron:true, lang:'ko-KR', front:"불고기", say:"\"p\"ool-goh-gee", meaning:"bulgogi" },
+      { pron:true, lang:'ko-KR', front:"떡볶이", say:"ttuhk-boh-kkee", meaning:"tteokbokki" },
+      { pron:true, lang:'ko-KR', front:"라면", say:"Lah-myuhn", meaning:"ramen" },
+      { pron:true, lang:'ko-KR', front:"냉면", say:"\"nd\"eng-myuhn", meaning:"cold noodles" },
+      { pron:true, lang:'ko-KR', front:"잡채", say:"\"ch\"ahp-cheh", meaning:"japchae" },
+      { pron:true, lang:'ko-KR', front:"치킨", say:"chee-keen", meaning:"fried chicken" },
+      { pron:true, lang:'ko-KR', front:"삼겹살", say:"sahm-gyuhp-ssahl", meaning:"pork belly" },
+      { pron:true, lang:'ko-KR', front:"김치찌개", say:"\"k\"eem-chee-jjee-geh", meaning:"kimchi stew" },
+      { pron:true, lang:'ko-KR', front:"된장찌개", say:"\"t\"wen-jahng-jjee-geh", meaning:"soybean paste stew" },
+      { pron:true, lang:'ko-KR', front:"순두부찌개", say:"soon-doo-boo-jjee-geh", meaning:"soft tofu stew" },
+      { pron:true, lang:'ko-KR', front:"계란찜", say:"\"k\"yeh-rahn-jjeem", meaning:"steamed egg" },
+      { pron:true, lang:'ko-KR', front:"붕어빵", say:"\"p\"oong-uh-ppahng", meaning:"fish-shaped bread" },
+      { pron:true, lang:'ko-KR', front:"호떡", say:"hoh-ttuhk", meaning:"sweet pancake" },
+      { pron:true, lang:'ko-KR', front:"해물파전", say:"hae-mool-pah-juhn", meaning:"seafood pancake" },
+      { pron:true, lang:'ko-KR', front:"한국 맛집", say:"han-goong \"mb\"ah-jjeep", meaning:"famous Korean restaurant" },
+      { pron:true, lang:'ko-KR', front:"맛있어요", say:"\"mb\"ah-shee-ssuh-yoh", meaning:"it's delicious" },
+      { pron:true, lang:'ko-KR', front:"매워요", say:"\"mb\"ae-wuh-yoh", meaning:"it's spicy" },
+      { pron:true, lang:'ko-KR', front:"안 매워요", say:"ahn \"mb\"ae-wuh-yoh", meaning:"it's not spicy" },
+      { pron:true, lang:'ko-KR', front:"물 주세요", say:"\"mb\"ool \"ch\"oo-seh-yoh", meaning:"please give me water" },
+      { pron:true, lang:'ko-KR', front:"밥 먹어요", say:"\"p\"ahp \"mb\"uh-guh-yoh", meaning:"I eat / let's eat" },
+      { pron:true, lang:'ko-KR', front:"많이 먹어요", say:"\"mb\"ahn-ee \"mb\"uh-guh-yoh", meaning:"I eat a lot" },
+      { pron:true, lang:'ko-KR', front:"조금 주세요", say:"\"ch\"oh-geum \"ch\"oo-seh-yoh", meaning:"please give me a little" },
+  ]},
+  { name:"Day 4", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"주인공", say:"\"ch\"oo-eeng-gong", meaning:"main character" },
+      { pron:true, lang:'ko-KR', front:"남자 주인공", say:"\"nd\"ahm-jah \"ch\"oo-eeng-gong", meaning:"male lead" },
+      { pron:true, lang:'ko-KR', front:"여자 주인공", say:"yuh-jah \"ch\"oo-eeng-gong", meaning:"female lead" },
+      { pron:true, lang:'ko-KR', front:"배우", say:"\"p\"ae-woo", meaning:"actor" },
+      { pron:true, lang:'ko-KR', front:"장면", say:"\"ch\"ahng-myuhn", meaning:"scene" },
+      { pron:true, lang:'ko-KR', front:"마지막 장면", say:"\"mb\"ah-jee-mahk \"ch\"ahng-myuhn", meaning:"final scene" },
+      { pron:true, lang:'ko-KR', front:"첫사랑", say:"chus-sah-rahng", meaning:"first love" },
+      { pron:true, lang:'ko-KR', front:"고백", say:"\"k\"oh-behk", meaning:"confession" },
+      { pron:true, lang:'ko-KR', front:"이별", say:"ee-byuhl", meaning:"breakup" },
+      { pron:true, lang:'ko-KR', front:"눈물", say:"\"nd\"oon-mool", meaning:"tears" },
+      { pron:true, lang:'ko-KR', front:"해피엔딩", say:"hae-pee-en-deeng", meaning:"happy ending" },
+      { pron:true, lang:'ko-KR', front:"슬픈 장면", say:"\"s\"eul-peun \"ch\"ahng-myuhn", meaning:"sad scene" },
+      { pron:true, lang:'ko-KR', front:"학교 드라마", say:"hag-ggyo \"t\"eu-rah-mah", meaning:"school drama" },
+      { pron:true, lang:'ko-KR', front:"로맨스 드라마", say:"Loh-men-seu \"t\"eu-rah-mah", meaning:"romance drama" },
+      { pron:true, lang:'ko-KR', front:"의학 드라마", say:"ee-hag \"t\"eu-rah-mah", meaning:"medical drama" },
+      { pron:true, lang:'ko-KR', front:"사극 드라마", say:"sah-geuk \"t\"eu-rah-mah", meaning:"historical drama" },
+      { pron:true, lang:'ko-KR', front:"서울 여행", say:"suh-ool yuh-haeng", meaning:"Seoul trip" },
+      { pron:true, lang:'ko-KR', front:"부산 여행", say:"\"p\"oo-sahn yuh-haeng", meaning:"Busan trip" },
+      { pron:true, lang:'ko-KR', front:"제주도 여행", say:"\"ch\"eh-joo-doh yuh-haeng", meaning:"Jeju Island trip" },
+      { pron:true, lang:'ko-KR', front:"한강 공원", say:"hang-gahng gong-won", meaning:"Han River park" },
+      { pron:true, lang:'ko-KR', front:"명동 거리", say:"\"my\"uhng-dong \"k\"uh-ree", meaning:"Myeongdong street" },
+      { pron:true, lang:'ko-KR', front:"홍대 거리", say:"hong-dae \"k\"uh-ree", meaning:"Hongdae street" },
+      { pron:true, lang:'ko-KR', front:"경복궁", say:"\"k\"yuhng-bok-ggoong", meaning:"Gyeongbokgung Palace" },
+      { pron:true, lang:'ko-KR', front:"한복", say:"han-bok", meaning:"hanbok" },
+      { pron:true, lang:'ko-KR', front:"태권도", say:"tae-gwon-doh", meaning:"taekwondo" },
+  ]},
+  { name:"Day 5", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"김치가 매워요.", say:"\"k\"eem-chee-gah, \"mb\"eh-wuh-yoh", meaning:"Kimchi is spicy." },
+      { pron:true, lang:'ko-KR', front:"저는 김치예요.", say:"\"ch\"uh-neun, \"k\"eem-chee-eh-yoh", meaning:"I am kimchi." },
+      { pron:true, lang:'ko-KR', front:"아이돌이 울어요.", say:"ah-ee-dol-ee, oo-ruh-yoh", meaning:"The idol is crying." },
+      { pron:true, lang:'ko-KR', front:"오빠가 라면 먹어요.", say:"oh-ppa-gah rah-myuhn \"mb\"uh-guh-yoh", meaning:"Oppa is eating ramen." },
+      { pron:true, lang:'ko-KR', front:"저는 팬이에요.", say:"\"ch\"uh-neun, pen-ee-eh-yoh", meaning:"I am a fan." },
+      { pron:true, lang:'ko-KR', front:"떡볶이가 너무 매워요.", say:"ttuhk-boh-kkee-gah, \"nd\"uh-moo \"mb\"ae-wuh-yoh", meaning:"Tteokbokki is too spicy." },
+      { pron:true, lang:'ko-KR', front:"드라마가 너무 길어요.", say:"\"t\"eu-rah-mah-gah \"nd\"uh-moo gee-ruh-yoh", meaning:"The drama is too long." },
+      { pron:true, lang:'ko-KR', front:"주인공이 또 울어요.", say:"\"ch\"oo-een-gong-ee ttoh oo-ruh-yoh", meaning:"The main character is crying again." },
+      { pron:true, lang:'ko-KR', front:"저는 밥을 사랑해요.", say:"\"ch\"uh-neun \"p\"ah-beul sah-rahng-hae-yoh", meaning:"I love rice." },
+      { pron:true, lang:'ko-KR', front:"고양이가 춤춰요.", say:"\"k\"oh-yahng-ee-gah choom-chwuh-yoh", meaning:"The cat is dancing." },
+      { pron:true, lang:'ko-KR', front:"친구가 아이돌이에요.", say:"\"ch\"een-goo-gah ah-ee-dol-ee-eh-yoh", meaning:"My friend is an idol." },
+      { pron:true, lang:'ko-KR', front:"엄마가 케이팝 좋아해요.", say:"uhm-mah-gah keh-ee-pahp \"ch\"oh-ah-hae-yoh", meaning:"Mom likes K-pop." },
+      { pron:true, lang:'ko-KR', front:"아빠가 춤을 춰요.", say:"ah-ppa-gah choo-meul chwuh-yoh", meaning:"Dad is dancing." },
+      { pron:true, lang:'ko-KR', front:"저는 포토카드 없어요.", say:"\"ch\"uh-neun poh-toh-kah-deu uhb-suh-yoh", meaning:"I don't have a photo card." },
+      { pron:true, lang:'ko-KR', front:"선생님이 콘서트 가요.", say:"sun-seng-neem-ee kon-suh-teu \"k\"ah-yoh", meaning:"The teacher goes to a concert." },
+      { pron:true, lang:'ko-KR', front:"배우가 김밥 먹어요.", say:"\"p\"ae-woo-gah \"k\"eem-bahp \"mb\"uh-guh-yoh", meaning:"The actor is eating kimbap." },
+      { pron:true, lang:'ko-KR', front:"저는 한복 입어요.", say:"\"ch\"uh-neun han-bok ee-buh-yoh", meaning:"I wear hanbok." },
+      { pron:true, lang:'ko-KR', front:"눈물이 김치예요.", say:"\"nd\"oon-moo-ree \"k\"eem-chee-yeh-yoh", meaning:"My tears are kimchi." },
+      { pron:true, lang:'ko-KR', front:"팬미팅이 내일이에요.", say:"pen-mee-teeng-ee \"nd\"eh-ee-ree-eh-yoh", meaning:"The fan meeting is tomorrow." },
+      { pron:true, lang:'ko-KR', front:"노래방에서 울어요.", say:"\"nd\"oh-rae-bahng-eh-suh oo-ruh-yoh", meaning:"I cry at karaoke." },
+      { pron:true, lang:'ko-KR', front:"라면이 친구예요.", say:"rah-myuh-nee \"ch\"een-goo-yeh-yoh", meaning:"Ramen is my friend." },
+      { pron:true, lang:'ko-KR', front:"저는 콘서트에서 자요.", say:"\"ch\"uh-neun kon-suh-teu-eh-suh \"ch\"ah-yoh", meaning:"I sleep at the concert." },
+      { pron:true, lang:'ko-KR', front:"김치찌개가 화났어요.", say:"\"k\"eem-chee-jjee-geh-gah hwah-nah-ssuh-yoh", meaning:"The kimchi stew is angry." },
+      { pron:true, lang:'ko-KR', front:"오빠가 포도 먹어요.", say:"oh-ppa-gah poh-doh \"mb\"uh-guh-yoh", meaning:"Oppa is eating grapes." },
+      { pron:true, lang:'ko-KR', front:"한국어가 귀여워요.", say:"han-goo-guh-gah \"k\"wee-yuh-wuh-yoh", meaning:"Korean is cute." },
+  ]},
+];
+
+const AB_WEEK3_DAYS = [
+  { name:"Day 1", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"저는 케이팝 팬이에요.", say:"\"ch\"uh-neun keh-ee-pahp pen-ee-eh-yoh", meaning:"I am a K-pop fan." },
+      { pron:true, lang:'ko-KR', front:"이건 제 포토카드예요? 아니요, 제 보물이에요.", say:"ee-guhn \"ch\"eh poh-toh-kah-deu-yeh-yoh? ah-nee-yoh, \"ch\"eh \"p\"oh-moo-ree-eh-yoh", meaning:"Is this my photocard? No, it is my treasure." },
+      { pron:true, lang:'ko-KR', front:"제 남친은 라면 킬러예요.", say:"\"ch\"eh \"nd\"ahm-chee-neun Lah-myuhn kee-luh-yeh-yoh", meaning:"My boyfriend is a ramen killer." },
+      { pron:true, lang:'ko-KR', front:"오빠는 아이돌이에요.", say:"oh-ppa-neun ah-ee-dol-ee-eh-yoh", meaning:"Oppa is an idol." },
+      { pron:true, lang:'ko-KR', front:"저는 드라마 중독이에요.", say:"\"ch\"uh-neun \"t\"eu-rah-mah \"ch\"oong-do-gee-eh-yoh", meaning:"I am addicted to dramas." },
+      { pron:true, lang:'ko-KR', front:"이건 김치찌개예요.", say:"ee-guhn \"k\"eem-chee-jjee-geh-yeh-yoh", meaning:"This is kimchi stew." },
+      { pron:true, lang:'ko-KR', front:"제 최애는 비밀이에요.", say:"\"ch\"eh chweh-eh-neun \"p\"ee-mee-ree-eh-yoh", meaning:"My bias is a secret." },
+      { pron:true, lang:'ko-KR', front:"이 사람은 배우예요.", say:"ee sah-rah-meun \"p\"ae-woo-yeh-yoh", meaning:"This person is an actor." },
+      { pron:true, lang:'ko-KR', front:"저는 한국어 학생이에요.", say:"\"ch\"uh-neun han-goo-guh hahk-saeng-ee-eh-yoh", meaning:"I am a Korean student." },
+      { pron:true, lang:'ko-KR', front:"여기는 노래방이에요.", say:"yuh-gee-neun \"nd\"oh-rae-bahng-ee-eh-yoh", meaning:"This place is a karaoke room." },
+      { pron:true, lang:'ko-KR', front:"제 친구는 춤 천재예요.", say:"\"ch\"eh \"ch\"een-goo-neun choom chuhn-jae-yeh-yoh", meaning:"My friend is a dance genius." },
+      { pron:true, lang:'ko-KR', front:"이건 진짜 대박이에요.", say:"ee-guhn \"ch\"een-jjah \"t\"ae-bah-gee-eh-yoh", meaning:"This is really awesome." },
+      { pron:true, lang:'ko-KR', front:"저는 떡볶이 사람이에요.", say:"\"ch\"uh-neun ttuhk-boh-kkee sah-rah-mee-eh-yoh", meaning:"I am a tteokbokki person." },
+      { pron:true, lang:'ko-KR', front:"김치 주세요.", say:"\"k\"eem-chee \"ch\"oo-seh-yoh", meaning:"Please give me kimchi." },
+      { pron:true, lang:'ko-KR', front:"물 주세요.", say:"\"mb\"ool \"ch\"oo-seh-yoh", meaning:"Please give me water." },
+      { pron:true, lang:'ko-KR', front:"라면 주세요.", say:"Lah-myuhn \"ch\"oo-seh-yoh", meaning:"Please give me ramen." },
+      { pron:true, lang:'ko-KR', front:"떡볶이 주세요.", say:"ttuhk-boh-kkee \"ch\"oo-seh-yoh", meaning:"Please give me tteokbokki." },
+      { pron:true, lang:'ko-KR', front:"치킨 주세요.", say:"chee-keen \"ch\"oo-seh-yoh", meaning:"Please give me chicken." },
+      { pron:true, lang:'ko-KR', front:"김밥 주세요.", say:"\"k\"eem-bahp \"ch\"oo-seh-yoh", meaning:"Please give me kimbap." },
+      { pron:true, lang:'ko-KR', front:"불고기 주세요.", say:"\"p\"ool-goh-gee \"ch\"oo-seh-yoh", meaning:"Please give me bulgogi." },
+      { pron:true, lang:'ko-KR', front:"비빔밥 주세요.", say:"\"p\"ee-beem-bahp \"ch\"oo-seh-yoh", meaning:"Please give me bibimbap." },
+      { pron:true, lang:'ko-KR', front:"커피 주세요.", say:"kuh-pee \"ch\"oo-seh-yoh", meaning:"Please give me coffee." },
+      { pron:true, lang:'ko-KR', front:"포토카드 주세요.", say:"poh-toh-kah-deu \"ch\"oo-seh-yoh", meaning:"Please give me a photocard." },
+      { pron:true, lang:'ko-KR', front:"앨범 주세요.", say:"el-bum \"ch\"oo-seh-yoh", meaning:"Please give me an album." },
+  ]},
+  { name:"Day 2", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"저 남자는 주인공이에요.", say:"\"ch\"uh \"nd\"ahm-jah-neun \"ch\"oo-een-gong-ee-eh-yoh", meaning:"That man is the main character." },
+      { pron:true, lang:'ko-KR', front:"이건 팬미팅 티켓이에요.", say:"ee-guhn pen-mee-teeng tee-ke-see-eh-yoh", meaning:"This is a fan meeting ticket." },
+      { pron:true, lang:'ko-KR', front:"제 가방은 김밥 가방이에요.", say:"\"ch\"eh \"k\"ah-bahng-eun \"k\"eem-bahp \"k\"ah-bahng-ee-eh-yoh", meaning:"My bag is a kimbap bag." },
+      { pron:true, lang:'ko-KR', front:"오늘은 콘서트 날이에요.", say:"oh-neu-reun kon-suh-teu nah-ree-eh-yoh", meaning:"Today is concert day." },
+      { pron:true, lang:'ko-KR', front:"저는 한복 모델이에요.", say:"\"ch\"uh-neun han-bok \"mb\"oh-de-ree-eh-yoh", meaning:"I am a hanbok model." },
+      { pron:true, lang:'ko-KR', front:"이건 제 응원봉이에요.", say:"ee-guhn \"ch\"eh eung-won-bong-ee-eh-yoh", meaning:"This is my light stick." },
+      { pron:true, lang:'ko-KR', front:"제 마음은 불고기예요.", say:"\"ch\"eh \"mb\"ah-eu-meun \"p\"ool-goh-gee-yeh-yoh", meaning:"My heart is bulgogi." },
+      { pron:true, lang:'ko-KR', front:"이 드라마는 눈물 버튼이에요.", say:"ee \"t\"eu-rah-mah-neun \"nd\"oon-mool \"p\"uh-teu-nee-eh-yoh", meaning:"This drama is a tear button." },
+      { pron:true, lang:'ko-KR', front:"저 사람은 제 최애예요.", say:"\"ch\"uh sah-rah-meun \"ch\"eh chweh-eh-yeh-yoh", meaning:"That person is my bias." },
+      { pron:true, lang:'ko-KR', front:"이건 한국 문화예요.", say:"ee-guhn han-gook \"mb\"oon-hwah-yeh-yoh", meaning:"This is Korean culture." },
+      { pron:true, lang:'ko-KR', front:"저는 김치 전사예요.", say:"\"ch\"uh-neun \"k\"eem-chee \"ch\"uhn-sah-yeh-yoh", meaning:"I am a kimchi warrior." },
+      { pron:true, lang:'ko-KR', front:"오늘 메뉴는 삼겹살이에요.", say:"oh-neul \"mb\"eh-nyoo-neun sahm-gyuhp-ssah-ree-eh-yoh", meaning:"Today’s menu is pork belly." },
+      { pron:true, lang:'ko-KR', front:"응원봉 주세요.", say:"eung-won-bong \"ch\"oo-seh-yoh", meaning:"Please give me a light stick." },
+      { pron:true, lang:'ko-KR', front:"콘서트 티켓 주세요.", say:"kon-suh-teu tee-ket \"ch\"oo-seh-yoh", meaning:"Please give me a concert ticket." },
+      { pron:true, lang:'ko-KR', front:"팬미팅 티켓 주세요.", say:"pen-mee-teeng tee-ket \"ch\"oo-seh-yoh", meaning:"Please give me a fan meeting ticket." },
+      { pron:true, lang:'ko-KR', front:"최애 사진 주세요.", say:"chweh-eh sah-jeen \"ch\"oo-seh-yoh", meaning:"Please give me my bias’s picture." },
+      { pron:true, lang:'ko-KR', front:"오빠 사진 주세요.", say:"oh-ppa sah-jeen \"ch\"oo-seh-yoh", meaning:"Please give me oppa’s picture." },
+      { pron:true, lang:'ko-KR', front:"드라마 추천 주세요.", say:"\"t\"eu-rah-mah choo-chuhn \"ch\"oo-seh-yoh", meaning:"Please give me a drama recommendation." },
+      { pron:true, lang:'ko-KR', front:"한국어 책 주세요.", say:"han-goo-guh chaek \"ch\"oo-seh-yoh", meaning:"Please give me a Korean book." },
+      { pron:true, lang:'ko-KR', front:"한복 주세요.", say:"han-bok \"ch\"oo-seh-yoh", meaning:"Please give me hanbok." },
+      { pron:true, lang:'ko-KR', front:"사랑 주세요.", say:"sah-rahng \"ch\"oo-seh-yoh", meaning:"Please give me love." },
+      { pron:true, lang:'ko-KR', front:"돈 주세요.", say:"\"t\"on \"ch\"oo-seh-yoh", meaning:"Please give me money." },
+      { pron:true, lang:'ko-KR', front:"시간 주세요.", say:"shee-gahn \"ch\"oo-seh-yoh", meaning:"Please give me time." },
+      { pron:true, lang:'ko-KR', front:"기회 주세요.", say:"\"k\"ee-hweh \"ch\"oo-seh-yoh", meaning:"Please give me a chance." },
+      { pron:true, lang:'ko-KR', front:"남친 주세요.", say:"\"nd\"ahm-cheen \"ch\"oo-seh-yoh", meaning:"Please give me a boyfriend." },
+      { pron:true, lang:'ko-KR', front:"휴식 주세요.", say:"hyoo-sheek \"ch\"oo-seh-yoh", meaning:"Please give me rest." },
+  ]},
+  { name:"Day 3", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"저는 캘빈이에요.", say:"\"ch\"uh-neun kael-bee-nee-eh-yoh", meaning:"I am Calvin." },
+      { pron:true, lang:'ko-KR', front:"이건 사과예요.", say:"ee-guhn sah-gwah-yeh-yoh", meaning:"This is an apple." },
+      { pron:true, lang:'ko-KR', front:"여기는 서울이에요.", say:"yuh-gee-neun \"suh\"-oo-ree-eh-yoh", meaning:"This is Seoul." },
+      { pron:true, lang:'ko-KR', front:"저기는 부산이에요.", say:"\"ch\"uh-gee-neun \"p\"oo-sah-nee-eh-yoh", meaning:"That place is Busan." },
+      { pron:true, lang:'ko-KR', front:"이건 커피예요.", say:"ee-guhn kuh-pee-yeh-yoh", meaning:"This is coffee." },
+      { pron:true, lang:'ko-KR', front:"제 최애는 지민이에요.", say:"\"ch\"eh chweh-eh-neun \"ch\"ee-mee-nee-eh-yoh", meaning:"My bias is Jimin." },
+      { pron:true, lang:'ko-KR', front:"이건 포도예요.", say:"ee-guhn poh-doh-yeh-yoh", meaning:"This is grapes." },
+      { pron:true, lang:'ko-KR', front:"오늘은 파티예요.", say:"oh-neu-reun pah-tee-yeh-yoh", meaning:"Today is a party." },
+      { pron:true, lang:'ko-KR', front:"이건 치킨이에요? 아니요, 사랑이에요.", say:"ee-guhn chee-kee-nee-eh-yoh? ah-nee-yoh, sah-rahng-ee-eh-yoh", meaning:"Is this chicken? No, it is love." },
+      { pron:true, lang:'ko-KR', front:"제 꿈은 아이돌이에요.", say:"\"ch\"eh kkoo-meun ah-ee-dol-ee-eh-yoh", meaning:"My dream is to be an idol." },
+      { pron:true, lang:'ko-KR', front:"이건 라면이에요? 아니요, 약이에요.", say:"ee-guhn Lah-myuh-nee-eh-yoh? ah-nee-yoh, yah-gee-eh-yoh", meaning:"Is this ramen? No, it is medicine." },
+      { pron:true, lang:'ko-KR', front:"저는 누나예요.", say:"\"ch\"uh-neun \"nd\"oo-na-yeh-yoh", meaning:"I am an older sister." },
+      { pron:true, lang:'ko-KR', front:"도와주세요.", say:"\"t\"oh-wah-\"ch\"oo-seh-yoh", meaning:"Please help me." },
+      { pron:true, lang:'ko-KR', front:"해주세요.", say:"hae-\"ch\"oo-seh-yoh", meaning:"Please do it for me." },
+      { pron:true, lang:'ko-KR', front:"이거 사주세요.", say:"ee-guh sah-\"ch\"oo-seh-yoh", meaning:"Please buy this for me." },
+      { pron:true, lang:'ko-KR', front:"라면 끓여 주세요.", say:"Lah-myuhn kkeu-ryuh \"ch\"oo-seh-yoh", meaning:"Please cook ramen for me." },
+      { pron:true, lang:'ko-KR', front:"김치 주세요? 아니요, 김치 만들어 주세요.", say:"\"k\"eem-chee \"ch\"oo-seh-yoh? ah-nee-yoh, \"k\"eem-chee \"mb\"ahn-deu-ruh \"ch\"oo-seh-yoh", meaning:"Give me kimchi? No, please make kimchi for me." },
+      { pron:true, lang:'ko-KR', front:"사진 찍어 주세요.", say:"sah-jeen jjee-guh \"ch\"oo-seh-yoh", meaning:"Please take a picture for me." },
+      { pron:true, lang:'ko-KR', front:"노래 불러 주세요.", say:"\"nd\"oh-rae \"p\"ool-luh \"ch\"oo-seh-yoh", meaning:"Please sing for me." },
+      { pron:true, lang:'ko-KR', front:"춤춰 주세요.", say:"choom-chwuh \"ch\"oo-seh-yoh", meaning:"Please dance for me." },
+      { pron:true, lang:'ko-KR', front:"한국어 가르쳐 주세요.", say:"han-goo-guh \"k\"ah-reu-chyuh \"ch\"oo-seh-yoh", meaning:"Please teach me Korean." },
+      { pron:true, lang:'ko-KR', front:"천천히 말해 주세요.", say:"chuhn-chuhn-hee \"mb\"ahl-hae \"ch\"oo-seh-yoh", meaning:"Please speak slowly." },
+      { pron:true, lang:'ko-KR', front:"다시 말해 주세요.", say:"\"t\"ah-shee \"mb\"ahl-hae \"ch\"oo-seh-yoh", meaning:"Please say it again." },
+  ]},
+  { name:"Day 4", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"저는 오빠예요.", say:"\"ch\"uh-neun oh-ppa-yeh-yoh", meaning:"I am an older brother." },
+      { pron:true, lang:'ko-KR', front:"이건 제주도예요.", say:"ee-guhn \"ch\"eh-joo-doh-yeh-yoh", meaning:"This is Jeju Island." },
+      { pron:true, lang:'ko-KR', front:"오늘은 쉬는 날이에요.", say:"oh-neu-reun shwee-neun nah-ree-eh-yoh", meaning:"Today is a rest day." },
+      { pron:true, lang:'ko-KR', front:"이건 제 의자예요.", say:"ee-guhn \"ch\"eh eui-jah-yeh-yoh", meaning:"This is my chair." },
+      { pron:true, lang:'ko-KR', front:"제 고양이는 왕이에요.", say:"\"ch\"eh \"k\"oh-yahng-ee-neun wahng-ee-eh-yoh", meaning:"My cat is a king." },
+      { pron:true, lang:'ko-KR', front:"이건 한국 노래예요.", say:"ee-guhn han-gook \"nd\"oh-rae-yeh-yoh", meaning:"This is a Korean song." },
+      { pron:true, lang:'ko-KR', front:"제 남자는 배우예요.", say:"\"ch\"eh \"nd\"ahm-jah-neun \"p\"ae-woo-yeh-yoh", meaning:"My man is an actor." },
+      { pron:true, lang:'ko-KR', front:"이건 로맨스 드라마예요.", say:"ee-guhn Loh-men-seu \"t\"eu-rah-mah-yeh-yoh", meaning:"This is a romance drama." },
+      { pron:true, lang:'ko-KR', front:"오늘은 김치 데이예요.", say:"oh-neu-reun \"k\"eem-chee \"t\"eh-ee-yeh-yoh", meaning:"Today is kimchi day." },
+      { pron:true, lang:'ko-KR', front:"여기는 명동이에요.", say:"yuh-gee-neun \"my\"uhng-dong-ee-eh-yoh", meaning:"This is Myeongdong." },
+      { pron:true, lang:'ko-KR', front:"이건 한강이에요.", say:"ee-guhn han-gahng-ee-eh-yoh", meaning:"This is the Han River." },
+      { pron:true, lang:'ko-KR', front:"제 친구는 천재예요.", say:"\"ch\"eh \"ch\"een-goo-neun chuhn-jae-yeh-yoh", meaning:"My friend is a genius." },
+      { pron:true, lang:'ko-KR', front:"이건 진짜 기회예요.", say:"ee-guhn \"ch\"een-jjah \"k\"ee-hweh-yeh-yoh", meaning:"This is a real chance." },
+      { pron:true, lang:'ko-KR', front:"이름 써 주세요.", say:"ee-reum ssuh \"ch\"oo-seh-yoh", meaning:"Please write your name." },
+      { pron:true, lang:'ko-KR', front:"문 열어 주세요.", say:"\"mb\"oon yuh-ruh \"ch\"oo-seh-yoh", meaning:"Please open the door." },
+      { pron:true, lang:'ko-KR', front:"음식 추천해 주세요.", say:"eum-sheek choo-chuhn-hae \"ch\"oo-seh-yoh", meaning:"Please recommend food." },
+      { pron:true, lang:'ko-KR', front:"드라마 추천해 주세요.", say:"\"t\"eu-rah-mah choo-chuhn-hae \"ch\"oo-seh-yoh", meaning:"Please recommend a drama." },
+      { pron:true, lang:'ko-KR', front:"케이팝 노래 추천해 주세요.", say:"keh-ee-pahp \"nd\"oh-rae choo-chuhn-hae \"ch\"oo-seh-yoh", meaning:"Please recommend a K-pop song." },
+      { pron:true, lang:'ko-KR', front:"포토카드 보여 주세요.", say:"poh-toh-kah-deu \"p\"oh-yuh \"ch\"oo-seh-yoh", meaning:"Please show me the photocard." },
+      { pron:true, lang:'ko-KR', front:"제 최애 찾아 주세요.", say:"\"ch\"eh chweh-eh chah-jah \"ch\"oo-seh-yoh", meaning:"Please find my bias." },
+      { pron:true, lang:'ko-KR', front:"제 마음 알아 주세요.", say:"\"ch\"eh \"mb\"ah-eum ah-rah \"ch\"oo-seh-yoh", meaning:"Please understand my heart." },
+      { pron:true, lang:'ko-KR', front:"저 좀 봐 주세요.", say:"\"ch\"uh \"ch\"om \"p\"wah \"ch\"oo-seh-yoh", meaning:"Please look at me." },
+      { pron:true, lang:'ko-KR', front:"오빠 불러 주세요.", say:"oh-ppa \"p\"ool-luh \"ch\"oo-seh-yoh", meaning:"Please call oppa." },
+      { pron:true, lang:'ko-KR', front:"삼겹살 구워 주세요.", say:"sahm-gyuhp-ssahl \"k\"oo-wuh \"ch\"oo-seh-yoh", meaning:"Please grill pork belly for me." },
+      { pron:true, lang:'ko-KR', front:"김밥 만들어 주세요.", say:"\"k\"eem-bahp \"mb\"ahn-deu-ruh \"ch\"oo-seh-yoh", meaning:"Please make kimbap for me." },
+      { pron:true, lang:'ko-KR', front:"제 눈물 닦아 주세요.", say:"\"ch\"eh \"nd\"oon-mool \"t\"ah-kkah \"ch\"oo-seh-yoh", meaning:"Please wipe my tears." },
+      { pron:true, lang:'ko-KR', front:"콘서트 같이 가 주세요.", say:"kon-suh-teu \"k\"ah-chee \"k\"ah \"ch\"oo-seh-yoh", meaning:"Please go to the concert with me." },
+  ]},
+];
+
+const AB_WEEK4_DAYS = [
+  { name:"Day 1", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"여기 앉을 수 있을까요?", say:"yuh-gee ahn-jeul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to sit here?" },
+      { pron:true, lang:'ko-KR', front:"여기서 앉을 수 있을까요?", say:"yuh-gee-suh ahn-jeul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to sit here?" },
+      { pron:true, lang:'ko-KR', front:"화장실을 쓸 수 있을까요?", say:"hwah-jahng-shee-reul sseul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to use the bathroom?" },
+      { pron:true, lang:'ko-KR', front:"와이파이를 쓸 수 있을까요?", say:"wah-ee-pah-ee-reul sseul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to use the Wi-Fi?" },
+      { pron:true, lang:'ko-KR', front:"이거 쓸 수 있을까요?", say:"ee-guh sseul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to use this?" },
+      { pron:true, lang:'ko-KR', front:"이 셔츠를 볼 수 있을까요?", say:"ee shyuh-cheu-reul \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to see this shirt?" },
+      { pron:true, lang:'ko-KR', front:"이거 볼 수 있을까요?", say:"ee-guh \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to see this?" },
+      { pron:true, lang:'ko-KR', front:"문을 열 수 있을까요?", say:"\"mb\"oo-neul yuhl soo ee-sseul-kkah-yoh?", meaning:"Would I be able to open the door?" },
+      { pron:true, lang:'ko-KR', front:"이거 먹을 수 있을까요?", say:"ee-guh \"mb\"uh-geul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat this?" },
+      { pron:true, lang:'ko-KR', front:"여기서 먹을 수 있을까요?", say:"yuh-gee-suh \"mb\"uh-geul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat here?" },
+      { pron:true, lang:'ko-KR', front:"김치를 먹을 수 있을까요?", say:"\"k\"eem-chee-reul \"mb\"uh-geul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat kimchi?" },
+      { pron:true, lang:'ko-KR', front:"떡볶이를 먹을 수 있을까요?", say:"ttuhk-boh-kkee-reul \"mb\"uh-geul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat tteokbokki?" },
+      { pron:true, lang:'ko-KR', front:"라면을 먹을 수 있을까요?", say:"Lah-myuh-neul \"mb\"uh-geul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat ramen?" },
+      { pron:true, lang:'ko-KR', front:"여기서 드라마를 볼 수 있을까요?", say:"yuh-gee-suh \"t\"eu-rah-mah-reul \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to watch a drama here?" },
+      { pron:true, lang:'ko-KR', front:"여기서 케이팝을 볼 수 있을까요?", say:"yuh-gee-suh keh-ee-pah-beul \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to watch K-pop here?" },
+      { pron:true, lang:'ko-KR', front:"이거 써 볼 수 있을까요?", say:"ee-guh ssuh \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to try using this?" },
+      { pron:true, lang:'ko-KR', front:"이 셔츠를 입어 볼 수 있을까요?", say:"ee shyuh-cheu-reul ee-buh \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to try on this shirt?" },
+      { pron:true, lang:'ko-KR', front:"와이파이 비밀번호를 쓸 수 있을까요?", say:"wah-ee-pah-ee \"p\"ee-meel-buhn-hoh-reul sseul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to use the Wi-Fi password?" },
+      { pron:true, lang:'ko-KR', front:"문을 조금 열 수 있을까요?", say:"\"mb\"oo-neul \"ch\"oh-geum yuhl soo ee-sseul-kkah-yoh?", meaning:"Would I be able to open the door a little?" },
+      { pron:true, lang:'ko-KR', front:"여기서 사진을 볼 수 있을까요?", say:"yuh-gee-suh sah-jee-neul \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to see the picture here?" },
+      { pron:true, lang:'ko-KR', front:"이 포토카드를 볼 수 있을까요?", say:"ee poh-toh-kah-deu-reul \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to see this photo card?" },
+      { pron:true, lang:'ko-KR', front:"이 앨범을 볼 수 있을까요?", say:"ee el-buh-meul \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to see this album?" },
+      { pron:true, lang:'ko-KR', front:"여기서 친구랑 앉을 수 있을까요?", say:"yuh-gee-suh \"ch\"een-goo-rahng ahn-jeul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to sit here with my friend?" },
+      { pron:true, lang:'ko-KR', front:"이거 먹고 울 수 있을까요?", say:"ee-guh \"mb\"uhk-ggoh ool soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat this and cry?" },
+      { pron:true, lang:'ko-KR', front:"여기서 라면 먹고 드라마 볼 수 있을까요?", say:"yuh-gee-suh Lah-myuhn \"mb\"uhk-ggoh \"t\"eu-rah-mah \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat ramen and watch a drama here?" },
+  ]},
+  { name:"Day 2", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"여기 앉을 수 있을까요?", say:"yuh-gee ahn-jeul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to sit here?" },
+      { pron:true, lang:'ko-KR', front:"여기는 제 자리예요.", say:"yuh-gee-neun \"ch\"eh \"ch\"ah-ree-yeh-yoh", meaning:"This is my seat." },
+      { pron:true, lang:'ko-KR', front:"물 주세요.", say:"\"mb\"ool \"ch\"oo-seh-yoh", meaning:"Please give me water." },
+      { pron:true, lang:'ko-KR', front:"화장실을 쓸 수 있을까요?", say:"hwah-jahng-shee-reul sseul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to use the bathroom?" },
+      { pron:true, lang:'ko-KR', front:"여기는 화장실이에요?", say:"yuh-gee-neun hwah-jahng-shee-ree-eh-yoh?", meaning:"Is this the bathroom?" },
+      { pron:true, lang:'ko-KR', front:"와이파이 비밀번호 주세요.", say:"wah-ee-pah-ee \"p\"ee-meel-buhn-hoh \"ch\"oo-seh-yoh", meaning:"Please give me the Wi-Fi password." },
+      { pron:true, lang:'ko-KR', front:"와이파이를 쓸 수 있을까요?", say:"wah-ee-pah-ee-reul sseul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to use the Wi-Fi?" },
+      { pron:true, lang:'ko-KR', front:"저는 케이팝 팬이에요.", say:"\"ch\"uh-neun keh-ee-pahp pen-ee-eh-yoh", meaning:"I am a K-pop fan." },
+      { pron:true, lang:'ko-KR', front:"이거 쓸 수 있을까요?", say:"ee-guh sseul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to use this?" },
+      { pron:true, lang:'ko-KR', front:"이거 주세요.", say:"ee-guh \"ch\"oo-seh-yoh", meaning:"Please give me this." },
+      { pron:true, lang:'ko-KR', front:"이거 김치예요.", say:"ee-guh \"k\"eem-chee-yeh-yoh", meaning:"This is kimchi." },
+      { pron:true, lang:'ko-KR', front:"이 셔츠를 볼 수 있을까요?", say:"ee shyuh-cheu-reul \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to see this shirt?" },
+      { pron:true, lang:'ko-KR', front:"이 셔츠는 오빠 스타일이에요.", say:"ee shyuh-cheu-neun oh-ppa seu-tah-ee-ree-eh-yoh", meaning:"This shirt is oppa style." },
+      { pron:true, lang:'ko-KR', front:"이 셔츠 보여 주세요.", say:"ee shyuh-cheu \"p\"oh-yuh \"ch\"oo-seh-yoh", meaning:"Please show me this shirt." },
+      { pron:true, lang:'ko-KR', front:"문을 열 수 있을까요?", say:"\"mb\"oo-neul yuhl soo ee-sseul-kkah-yoh?", meaning:"Would I be able to open the door?" },
+      { pron:true, lang:'ko-KR', front:"문 열어 주세요.", say:"\"mb\"oon yuh-ruh \"ch\"oo-seh-yoh", meaning:"Please open the door." },
+      { pron:true, lang:'ko-KR', front:"여기는 노래방이에요.", say:"yuh-gee-neun \"nd\"oh-rae-bahng-ee-eh-yoh", meaning:"This place is a karaoke room." },
+      { pron:true, lang:'ko-KR', front:"여기서 먹을 수 있을까요?", say:"yuh-gee-suh \"mb\"uh-geul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat here?" },
+      { pron:true, lang:'ko-KR', front:"라면 주세요.", say:"Lah-myuhn \"ch\"oo-seh-yoh", meaning:"Please give me ramen." },
+      { pron:true, lang:'ko-KR', front:"라면은 제 친구예요.", say:"Lah-myuh-neun \"ch\"eh \"ch\"een-goo-yeh-yoh", meaning:"Ramen is my friend." },
+      { pron:true, lang:'ko-KR', front:"김치를 먹을 수 있을까요?", say:"\"k\"eem-chee-reul \"mb\"uh-geul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat kimchi?" },
+      { pron:true, lang:'ko-KR', front:"김치 주세요.", say:"\"k\"eem-chee \"ch\"oo-seh-yoh", meaning:"Please give me kimchi." },
+      { pron:true, lang:'ko-KR', front:"김치는 매운 사랑이에요.", say:"\"k\"eem-chee-neun \"mb\"ae-oon sah-rahng-ee-eh-yoh", meaning:"Kimchi is spicy love." },
+      { pron:true, lang:'ko-KR', front:"떡볶이를 먹을 수 있을까요?", say:"ttuhk-boh-kkee-reul \"mb\"uh-geul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat tteokbokki?" },
+      { pron:true, lang:'ko-KR', front:"물 좀 주세요.", say:"\"mb\"ool \"ch\"om \"ch\"oo-seh-yoh", meaning:"Please give me some water." },
+  ]},
+  { name:"Day 3", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"여기 앉을 수 있을까요?", say:"yuh-gee ahn-jeul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to sit here?" },
+      { pron:true, lang:'ko-KR', front:"여기는 제 자리예요.", say:"yuh-gee-neun \"ch\"eh \"ch\"ah-ree-yeh-yoh", meaning:"This is my seat." },
+      { pron:true, lang:'ko-KR', front:"물 주세요.", say:"\"mb\"ool \"ch\"oo-seh-yoh", meaning:"Please give me water." },
+      { pron:true, lang:'ko-KR', front:"화장실을 쓸 수 있을까요?", say:"hwah-jahng-shee-reul sseul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to use the bathroom?" },
+      { pron:true, lang:'ko-KR', front:"여기는 화장실이에요?", say:"yuh-gee-neun hwah-jahng-shee-ree-eh-yoh?", meaning:"Is this the bathroom?" },
+      { pron:true, lang:'ko-KR', front:"와이파이 비밀번호 주세요.", say:"wah-ee-pah-ee \"p\"ee-meel-buhn-hoh \"ch\"oo-seh-yoh", meaning:"Please give me the Wi-Fi password." },
+      { pron:true, lang:'ko-KR', front:"와이파이를 쓸 수 있을까요?", say:"wah-ee-pah-ee-reul sseul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to use the Wi-Fi?" },
+      { pron:true, lang:'ko-KR', front:"저는 케이팝 팬이에요.", say:"\"ch\"uh-neun keh-ee-pahp pen-ee-eh-yoh", meaning:"I am a K-pop fan." },
+      { pron:true, lang:'ko-KR', front:"이거 쓸 수 있을까요?", say:"ee-guh sseul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to use this?" },
+      { pron:true, lang:'ko-KR', front:"이거 주세요.", say:"ee-guh \"ch\"oo-seh-yoh", meaning:"Please give me this." },
+      { pron:true, lang:'ko-KR', front:"이거 김치예요.", say:"ee-guh \"k\"eem-chee-yeh-yoh", meaning:"This is kimchi." },
+      { pron:true, lang:'ko-KR', front:"이 셔츠를 볼 수 있을까요?", say:"ee shyuh-cheu-reul \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to see this shirt?" },
+      { pron:true, lang:'ko-KR', front:"이 셔츠는 오빠 스타일이에요.", say:"ee shyuh-cheu-neun oh-ppa seu-tah-ee-ree-eh-yoh", meaning:"This shirt is oppa style." },
+      { pron:true, lang:'ko-KR', front:"이 셔츠 보여 주세요.", say:"ee shyuh-cheu \"p\"oh-yuh \"ch\"oo-seh-yoh", meaning:"Please show me this shirt." },
+      { pron:true, lang:'ko-KR', front:"문을 열 수 있을까요?", say:"\"mb\"oo-neul yuhl soo ee-sseul-kkah-yoh?", meaning:"Would I be able to open the door?" },
+      { pron:true, lang:'ko-KR', front:"문 열어 주세요.", say:"\"mb\"oon yuh-ruh \"ch\"oo-seh-yoh", meaning:"Please open the door." },
+      { pron:true, lang:'ko-KR', front:"여기는 노래방이에요.", say:"yuh-gee-neun \"nd\"oh-rae-bahng-ee-eh-yoh", meaning:"This place is a karaoke room." },
+      { pron:true, lang:'ko-KR', front:"여기서 먹을 수 있을까요?", say:"yuh-gee-suh \"mb\"uh-geul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat here?" },
+      { pron:true, lang:'ko-KR', front:"라면 주세요.", say:"Lah-myuhn \"ch\"oo-seh-yoh", meaning:"Please give me ramen." },
+      { pron:true, lang:'ko-KR', front:"라면은 제 친구예요.", say:"Lah-myuh-neun \"ch\"eh \"ch\"een-goo-yeh-yoh", meaning:"Ramen is my friend." },
+      { pron:true, lang:'ko-KR', front:"김치를 먹을 수 있을까요?", say:"\"k\"eem-chee-reul \"mb\"uh-geul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat kimchi?" },
+      { pron:true, lang:'ko-KR', front:"김치 주세요.", say:"\"k\"eem-chee \"ch\"oo-seh-yoh", meaning:"Please give me kimchi." },
+      { pron:true, lang:'ko-KR', front:"김치는 매운 사랑이에요.", say:"\"k\"eem-chee-neun \"mb\"ae-oon sah-rahng-ee-eh-yoh", meaning:"Kimchi is spicy love." },
+      { pron:true, lang:'ko-KR', front:"떡볶이를 먹을 수 있을까요?", say:"ttuhk-boh-kkee-reul \"mb\"uh-geul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat tteokbokki?" },
+      { pron:true, lang:'ko-KR', front:"물 좀 주세요.", say:"\"mb\"ool \"ch\"om \"ch\"oo-seh-yoh", meaning:"Please give me some water." },
+  ]},
+  { name:"Day 4", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"이거 먹을 수 있을까요?", say:"ee-guh \"mb\"uh-geul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat this?" },
+      { pron:true, lang:'ko-KR', front:"이건 제 야식이에요.", say:"ee-guhn \"ch\"eh yah-shee-gee-eh-yoh", meaning:"This is my late-night snack." },
+      { pron:true, lang:'ko-KR', front:"치킨 주세요.", say:"chee-keen \"ch\"oo-seh-yoh", meaning:"Please give me chicken." },
+      { pron:true, lang:'ko-KR', front:"여기서 드라마를 볼 수 있을까요?", say:"yuh-gee-suh \"t\"eu-rah-mah-reul \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to watch a drama here?" },
+      { pron:true, lang:'ko-KR', front:"이 드라마는 눈물 버튼이에요.", say:"ee \"t\"eu-rah-mah-neun \"nd\"oon-mool \"p\"uh-teu-nee-eh-yoh", meaning:"This drama is a tear button." },
+      { pron:true, lang:'ko-KR', front:"휴지 주세요.", say:"hyoo-jee \"ch\"oo-seh-yoh", meaning:"Please give me tissues." },
+      { pron:true, lang:'ko-KR', front:"여기서 케이팝을 볼 수 있을까요?", say:"yuh-gee-suh keh-ee-pah-beul \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to watch K-pop here?" },
+      { pron:true, lang:'ko-KR', front:"제 최애는 천재예요.", say:"\"ch\"eh chweh-eh-neun chuhn-jae-yeh-yoh", meaning:"My bias is a genius." },
+      { pron:true, lang:'ko-KR', front:"포토카드 보여 주세요.", say:"poh-toh-kah-deu \"p\"oh-yuh \"ch\"oo-seh-yoh", meaning:"Please show me the photocard." },
+      { pron:true, lang:'ko-KR', front:"이거 써 볼 수 있을까요?", say:"ee-guh ssuh \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to try using this?" },
+      { pron:true, lang:'ko-KR', front:"저는 오늘 초보예요.", say:"\"ch\"uh-neun oh-neul choh-boh-yeh-yoh", meaning:"Today I am a beginner." },
+      { pron:true, lang:'ko-KR', front:"한국어 도와주세요.", say:"han-goo-guh \"t\"oh-wah-\"ch\"oo-seh-yoh", meaning:"Please help me with Korean." },
+      { pron:true, lang:'ko-KR', front:"이 셔츠를 입어 볼 수 있을까요?", say:"ee shyuh-cheu-reul ee-buh \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to try on this shirt?" },
+      { pron:true, lang:'ko-KR', front:"이건 남친룩이에요.", say:"ee-guhn \"nd\"ahm-cheen-loo-gee-eh-yoh", meaning:"This is boyfriend style." },
+      { pron:true, lang:'ko-KR', front:"이거 사주세요.", say:"ee-guh sah-\"ch\"oo-seh-yoh", meaning:"Please buy this for me." },
+      { pron:true, lang:'ko-KR', front:"문을 조금 열 수 있을까요?", say:"\"mb\"oo-neul \"ch\"oh-geum yuhl soo ee-sseul-kkah-yoh?", meaning:"Would I be able to open the door a little?" },
+      { pron:true, lang:'ko-KR', front:"여기는 제 무대예요.", say:"yuh-gee-neun \"ch\"eh \"mb\"oo-dae-yeh-yoh", meaning:"This is my stage." },
+      { pron:true, lang:'ko-KR', front:"사진 찍어 주세요.", say:"sah-jeen jjee-guh \"ch\"oo-seh-yoh", meaning:"Please take a picture for me." },
+      { pron:true, lang:'ko-KR', front:"여기서 사진을 볼 수 있을까요?", say:"yuh-gee-suh sah-jee-neul \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to see the picture here?" },
+      { pron:true, lang:'ko-KR', front:"이건 제 인생 사진이에요.", say:"ee-guhn \"ch\"eh een-saeng sah-jee-nee-eh-yoh", meaning:"This is my best picture ever." },
+      { pron:true, lang:'ko-KR', front:"다시 보여 주세요.", say:"\"t\"ah-shee \"p\"oh-yuh \"ch\"oo-seh-yoh", meaning:"Please show me again." },
+      { pron:true, lang:'ko-KR', front:"이 포토카드를 볼 수 있을까요?", say:"ee poh-toh-kah-deu-reul \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to see this photo card?" },
+      { pron:true, lang:'ko-KR', front:"이 포토카드는 제 보물이에요.", say:"ee poh-toh-kah-deu-neun \"ch\"eh \"p\"oh-moo-ree-eh-yoh", meaning:"This photocard is my treasure." },
+      { pron:true, lang:'ko-KR', front:"제 마음 알아 주세요.", say:"\"ch\"eh \"mb\"ah-eum ah-rah \"ch\"oo-seh-yoh", meaning:"Please understand my heart." },
+      { pron:true, lang:'ko-KR', front:"여기서 친구랑 앉을 수 있을까요?", say:"yuh-gee-suh \"ch\"een-goo-rahng ahn-jeul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to sit here with my friend?" },
+  ]},
+  { name:"Day 5", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"이 앨범을 볼 수 있을까요?", say:"ee el-buh-meul \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to see this album?" },
+      { pron:true, lang:'ko-KR', front:"이 앨범은 진짜 대박이에요.", say:"ee el-buh-meun \"ch\"een-jjah \"t\"ae-bah-gee-eh-yoh", meaning:"This album is really amazing." },
+      { pron:true, lang:'ko-KR', front:"앨범 주세요.", say:"el-bum \"ch\"oo-seh-yoh", meaning:"Please give me the album." },
+      { pron:true, lang:'ko-KR', front:"여기서 라면 먹고 드라마 볼 수 있을까요?", say:"yuh-gee-suh Lah-myuhn \"mb\"uhk-ggoh \"t\"eu-rah-mah \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat ramen and watch a drama here?" },
+      { pron:true, lang:'ko-KR', front:"오늘은 완벽한 날이에요.", say:"oh-neu-reun wahn-byuh-kahn nah-ree-eh-yoh", meaning:"Today is a perfect day." },
+      { pron:true, lang:'ko-KR', front:"라면 끓여 주세요.", say:"Lah-myuhn kkeu-ryuh \"ch\"oo-seh-yoh", meaning:"Please cook ramen for me." },
+      { pron:true, lang:'ko-KR', front:"이거 먹고 울 수 있을까요?", say:"ee-guh \"mb\"uhk-ggoh ool soo ee-sseul-kkah-yoh?", meaning:"Would I be able to eat this and cry?" },
+      { pron:true, lang:'ko-KR', front:"저는 드라마 주인공이에요.", say:"\"ch\"uh-neun \"t\"eu-rah-mah \"ch\"oo-een-gong-ee-eh-yoh", meaning:"I am the main character of a drama." },
+      { pron:true, lang:'ko-KR', front:"저 좀 봐 주세요.", say:"\"ch\"uh \"ch\"om \"p\"wah \"ch\"oo-seh-yoh", meaning:"Please look at me." },
+      { pron:true, lang:'ko-KR', front:"여기서 앉을 수 있을까요?", say:"yuh-gee-suh ahn-jeul soo ee-sseul-kkah-yoh?", meaning:"Would I be able to sit here?" },
+      { pron:true, lang:'ko-KR', front:"여기는 제 콘서트 자리예요.", say:"yuh-gee-neun \"ch\"eh kon-suh-teu \"ch\"ah-ree-yeh-yoh", meaning:"This is my concert seat." },
+      { pron:true, lang:'ko-KR', front:"응원봉 주세요.", say:"eung-won-bong \"ch\"oo-seh-yoh", meaning:"Please give me a light stick." },
+      { pron:true, lang:'ko-KR', front:"커피를 마실 수 있을까요?", say:"kuh-pee-reul \"mb\"ah-sheel soo ee-sseul-kkah-yoh?", meaning:"Would I be able to drink coffee?" },
+      { pron:true, lang:'ko-KR', front:"이건 아이스 아메리카노예요.", say:"ee-guhn ah-ee-seu ah-meh-ree-kah-noh-yeh-yoh", meaning:"This is an iced Americano." },
+      { pron:true, lang:'ko-KR', front:"커피 주세요.", say:"kuh-pee \"ch\"oo-seh-yoh", meaning:"Please give me coffee." },
+      { pron:true, lang:'ko-KR', front:"여기서 기다릴 수 있을까요?", say:"yuh-gee-suh \"k\"ee-dah-reel soo ee-sseul-kkah-yoh?", meaning:"Would I be able to wait here?" },
+      { pron:true, lang:'ko-KR', front:"저는 돈 없는 팬이에요.", say:"\"ch\"uh-neun \"t\"on uhm-neun pen-ee-eh-yoh", meaning:"I am a fan with no money." },
+      { pron:true, lang:'ko-KR', front:"콘서트 티켓 주세요.", say:"kon-suh-teu tee-ket \"ch\"oo-seh-yoh", meaning:"Please give me a concert ticket." },
+      { pron:true, lang:'ko-KR', front:"이거 볼 수 있을까요?", say:"ee-guh \"p\"ol soo ee-sseul-kkah-yoh?", meaning:"Would I be able to see this?" },
+      { pron:true, lang:'ko-KR', front:"이건 비밀이에요.", say:"ee-guhn \"p\"ee-mee-ree-eh-yoh", meaning:"This is a secret." },
+      { pron:true, lang:'ko-KR', front:"말해 주세요.", say:"\"mb\"ahl-hae \"ch\"oo-seh-yoh", meaning:"Please tell me." },
+      { pron:true, lang:'ko-KR', front:"한국어를 배울 수 있을까요?", say:"han-goo-guh-reul \"p\"ae-ool soo ee-sseul-kkah-yoh?", meaning:"Would I be able to learn Korean?" },
+      { pron:true, lang:'ko-KR', front:"저는 한국어 학생이에요.", say:"\"ch\"uh-neun han-goo-guh hahk-saeng-ee-eh-yoh", meaning:"I am a Korean student." },
+      { pron:true, lang:'ko-KR', front:"천천히 말해 주세요.", say:"chuhn-chuhn-hee \"mb\"ahl-hae \"ch\"oo-seh-yoh", meaning:"Please speak slowly." },
+      { pron:true, lang:'ko-KR', front:"오늘도 공부할 수 있을까요?", say:"oh-neul-doh gong-boo-hahl soo ee-sseul-kkah-yoh?", meaning:"Would I be able to study again today?" },
+  ]},
+];
+
+const AB_WEEK5_DAYS = [
+  { name:"Day 1", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"여기 앉아도 될까요?", say:"yuh-gee ahn-jah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I sit here?" },
+      { pron:true, lang:'ko-KR', front:"화장실에 가도 될까요?", say:"hwah-jahng-shee-reh \"k\"ah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I go to the bathroom?" },
+      { pron:true, lang:'ko-KR', front:"와이파이를 써도 될까요?", say:"wah-ee-pah-ee-reul ssuh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I use the Wi-Fi?" },
+      { pron:true, lang:'ko-KR', front:"이거 써도 될까요?", say:"ee-guh ssuh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I use this?" },
+      { pron:true, lang:'ko-KR', front:"이 셔츠를 봐도 될까요?", say:"ee shyuh-cheu-reul \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I look at this shirt?" },
+      { pron:true, lang:'ko-KR', front:"이거 봐도 될까요?", say:"ee-guh \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I look at this?" },
+      { pron:true, lang:'ko-KR', front:"문을 열어도 될까요?", say:"\"mb\"oo-neul yuh-ruh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I open the door?" },
+      { pron:true, lang:'ko-KR', front:"이거 먹어도 될까요?", say:"ee-guh \"mb\"uh-guh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I eat this?" },
+      { pron:true, lang:'ko-KR', front:"여기서 먹어도 될까요?", say:"yuh-gee-suh \"mb\"uh-guh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I eat here?" },
+      { pron:true, lang:'ko-KR', front:"김치를 먹어도 될까요?", say:"\"k\"eem-chee-reul \"mb\"uh-guh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I eat kimchi?" },
+      { pron:true, lang:'ko-KR', front:"떡볶이를 먹어도 될까요?", say:"ttuhk-boh-kkee-reul \"mb\"uh-guh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I eat tteokbokki?" },
+      { pron:true, lang:'ko-KR', front:"라면을 먹어도 될까요?", say:"Lah-myuh-neul \"mb\"uh-guh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I eat ramen?" },
+      { pron:true, lang:'ko-KR', front:"여기서 드라마를 봐도 될까요?", say:"yuh-gee-suh \"t\"eu-rah-mah-reul \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I watch a drama here?" },
+      { pron:true, lang:'ko-KR', front:"여기서 케이팝을 봐도 될까요?", say:"yuh-gee-suh keh-ee-pah-beul \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I watch K-pop here?" },
+      { pron:true, lang:'ko-KR', front:"이거 써 봐도 될까요?", say:"ee-guh ssuh \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I try using this?" },
+      { pron:true, lang:'ko-KR', front:"이 셔츠를 입어 봐도 될까요?", say:"ee shyuh-cheu-reul ee-buh \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I try on this shirt?" },
+      { pron:true, lang:'ko-KR', front:"와이파이 비밀번호를 써도 될까요?", say:"wah-ee-pah-ee \"p\"ee-meel-buhn-hoh-reul ssuh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I use the Wi-Fi password?" },
+      { pron:true, lang:'ko-KR', front:"문을 조금 열어도 될까요?", say:"\"mb\"oo-neul \"ch\"oh-geum yuh-ruh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I open the door a little?" },
+      { pron:true, lang:'ko-KR', front:"여기서 사진을 봐도 될까요?", say:"yuh-gee-suh sah-jee-neul \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I look at the picture here?" },
+      { pron:true, lang:'ko-KR', front:"이 포토카드를 봐도 될까요?", say:"ee poh-toh-kah-deu-reul \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I look at this photocard?" },
+      { pron:true, lang:'ko-KR', front:"이 앨범을 봐도 될까요?", say:"ee el-buh-meul \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I look at this album?" },
+      { pron:true, lang:'ko-KR', front:"여기서 친구랑 앉아도 될까요?", say:"yuh-gee-suh \"ch\"een-goo-rahng ahn-jah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I sit here with my friend?" },
+      { pron:true, lang:'ko-KR', front:"이거 먹고 울어도 될까요?", say:"ee-guh \"mb\"uhk-ggoh oo-ruh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I eat this and cry?" },
+      { pron:true, lang:'ko-KR', front:"여기서 라면 먹고 드라마 봐도 될까요?", say:"yuh-gee-suh Lah-myuhn \"mb\"uhk-ggoh \"t\"eu-rah-mah \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I eat ramen and watch a drama here?" },
+      { pron:true, lang:'ko-KR', front:"물어봐도 될까요?", say:"\"mb\"oo-ruh-\"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I ask?" },
+  ]},
+  { name:"Day 2", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"여기 앉아도 될까요?", say:"yuh-gee ahn-jah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I sit here?" },
+      { pron:true, lang:'ko-KR', front:"여기는 제 자리예요.", say:"yuh-gee-neun \"ch\"eh \"ch\"ah-ree-yeh-yoh", meaning:"This is my seat." },
+      { pron:true, lang:'ko-KR', front:"물 좀 주세요.", say:"\"mb\"ool \"ch\"om \"ch\"oo-seh-yoh", meaning:"Please give me some water." },
+      { pron:true, lang:'ko-KR', front:"화장실에 가도 될까요?", say:"hwah-jahng-shee-reh \"k\"ah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I go to the bathroom?" },
+      { pron:true, lang:'ko-KR', front:"여기는 화장실이에요?", say:"yuh-gee-neun hwah-jahng-shee-ree-eh-yoh?", meaning:"Is this the bathroom?" },
+      { pron:true, lang:'ko-KR', front:"와이파이 비밀번호 주세요.", say:"wah-ee-pah-ee \"p\"ee-meel-buhn-hoh \"ch\"oo-seh-yoh", meaning:"Please give me the Wi-Fi password." },
+      { pron:true, lang:'ko-KR', front:"와이파이를 써도 될까요?", say:"wah-ee-pah-ee-reul ssuh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I use the Wi-Fi?" },
+      { pron:true, lang:'ko-KR', front:"저는 케이팝 팬이에요.", say:"\"ch\"uh-neun keh-ee-pahp pen-ee-eh-yoh", meaning:"I am a K-pop fan." },
+      { pron:true, lang:'ko-KR', front:"이거 써도 될까요?", say:"ee-guh ssuh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I use this?" },
+      { pron:true, lang:'ko-KR', front:"이거 주세요.", say:"ee-guh \"ch\"oo-seh-yoh", meaning:"Please give me this." },
+      { pron:true, lang:'ko-KR', front:"이거 김치예요.", say:"ee-guh \"k\"eem-chee-yeh-yoh", meaning:"This is kimchi." },
+      { pron:true, lang:'ko-KR', front:"이 셔츠를 봐도 될까요?", say:"ee shyuh-cheu-reul \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I look at this shirt?" },
+      { pron:true, lang:'ko-KR', front:"이 셔츠는 오빠 스타일이에요.", say:"ee shyuh-cheu-neun oh-ppa seu-tah-ee-ree-eh-yoh", meaning:"This shirt is oppa style." },
+      { pron:true, lang:'ko-KR', front:"이 셔츠 보여 주세요.", say:"ee shyuh-cheu \"p\"oh-yuh \"ch\"oo-seh-yoh", meaning:"Please show me this shirt." },
+      { pron:true, lang:'ko-KR', front:"문을 열어도 될까요?", say:"\"mb\"oo-neul yuh-ruh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I open the door?" },
+      { pron:true, lang:'ko-KR', front:"문 열어 주세요.", say:"\"mb\"oon yuh-ruh \"ch\"oo-seh-yoh", meaning:"Please open the door." },
+      { pron:true, lang:'ko-KR', front:"여기는 노래방이에요.", say:"yuh-gee-neun \"nd\"oh-rae-bahng-ee-eh-yoh", meaning:"This place is a karaoke room." },
+      { pron:true, lang:'ko-KR', front:"여기서 먹어도 될까요?", say:"yuh-gee-suh \"mb\"uh-guh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I eat here?" },
+      { pron:true, lang:'ko-KR', front:"라면 주세요.", say:"Lah-myuhn \"ch\"oo-seh-yoh", meaning:"Please give me ramen." },
+      { pron:true, lang:'ko-KR', front:"라면은 제 친구예요.", say:"Lah-myuh-neun \"ch\"eh \"ch\"een-goo-yeh-yoh", meaning:"Ramen is my friend." },
+      { pron:true, lang:'ko-KR', front:"김치를 먹어도 될까요?", say:"\"k\"eem-chee-reul \"mb\"uh-guh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I eat kimchi?" },
+      { pron:true, lang:'ko-KR', front:"김치 주세요.", say:"\"k\"eem-chee \"ch\"oo-seh-yoh", meaning:"Please give me kimchi." },
+      { pron:true, lang:'ko-KR', front:"김치는 매운 사랑이에요.", say:"\"k\"eem-chee-neun \"mb\"ae-oon sah-rahng-ee-eh-yoh", meaning:"Kimchi is spicy love." },
+      { pron:true, lang:'ko-KR', front:"떡볶이를 먹어도 될까요?", say:"ttuhk-boh-kkee-reul \"mb\"uh-guh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I eat tteokbokki?" },
+      { pron:true, lang:'ko-KR', front:"물어봐도 될까요?", say:"\"mb\"oo-ruh-\"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I ask?" },
+  ]},
+  { name:"Day 3", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"이거 먹어도 될까요?", say:"ee-guh \"mb\"uh-guh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I eat this?" },
+      { pron:true, lang:'ko-KR', front:"이건 제 야식이에요.", say:"ee-guhn \"ch\"eh yah-shee-gee-eh-yoh", meaning:"This is my late-night snack." },
+      { pron:true, lang:'ko-KR', front:"치킨 주세요.", say:"chee-keen \"ch\"oo-seh-yoh", meaning:"Please give me chicken." },
+      { pron:true, lang:'ko-KR', front:"여기서 드라마를 봐도 될까요?", say:"yuh-gee-suh \"t\"eu-rah-mah-reul \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I watch a drama here?" },
+      { pron:true, lang:'ko-KR', front:"이 드라마는 눈물 버튼이에요.", say:"ee \"t\"eu-rah-mah-neun \"nd\"oon-mool \"p\"uh-teu-nee-eh-yoh", meaning:"This drama is a tear button." },
+      { pron:true, lang:'ko-KR', front:"휴지 주세요.", say:"hyoo-jee \"ch\"oo-seh-yoh", meaning:"Please give me tissues." },
+      { pron:true, lang:'ko-KR', front:"여기서 케이팝을 봐도 될까요?", say:"yuh-gee-suh keh-ee-pah-beul \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I watch K-pop here?" },
+      { pron:true, lang:'ko-KR', front:"제 최애는 천재예요.", say:"\"ch\"eh chweh-eh-neun chuhn-jae-yeh-yoh", meaning:"My bias is a genius." },
+      { pron:true, lang:'ko-KR', front:"포토카드 보여 주세요.", say:"poh-toh-kah-deu \"p\"oh-yuh \"ch\"oo-seh-yoh", meaning:"Please show me the photocard." },
+      { pron:true, lang:'ko-KR', front:"이거 써 봐도 될까요?", say:"ee-guh ssuh \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I try using this?" },
+      { pron:true, lang:'ko-KR', front:"저는 오늘 초보예요.", say:"\"ch\"uh-neun oh-neul choh-boh-yeh-yoh", meaning:"Today I am a beginner." },
+      { pron:true, lang:'ko-KR', front:"한국어 도와주세요.", say:"han-goo-guh \"t\"oh-wah-\"ch\"oo-seh-yoh", meaning:"Please help me with Korean." },
+      { pron:true, lang:'ko-KR', front:"이 셔츠를 입어 봐도 될까요?", say:"ee shyuh-cheu-reul ee-buh \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I try on this shirt?" },
+      { pron:true, lang:'ko-KR', front:"이건 남친룩이에요.", say:"ee-guhn \"nd\"ahm-cheen-loo-gee-eh-yoh", meaning:"This is boyfriend style." },
+      { pron:true, lang:'ko-KR', front:"이거 사주세요.", say:"ee-guh sah-\"ch\"oo-seh-yoh", meaning:"Please buy this for me." },
+      { pron:true, lang:'ko-KR', front:"문을 조금 열어도 될까요?", say:"\"mb\"oo-neul \"ch\"oh-geum yuh-ruh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I open the door a little?" },
+      { pron:true, lang:'ko-KR', front:"여기는 제 무대예요.", say:"yuh-gee-neun \"ch\"eh \"mb\"oo-dae-yeh-yoh", meaning:"This is my stage." },
+      { pron:true, lang:'ko-KR', front:"사진 찍어 주세요.", say:"sah-jeen jjee-guh \"ch\"oo-seh-yoh", meaning:"Please take a picture for me." },
+      { pron:true, lang:'ko-KR', front:"여기서 사진을 봐도 될까요?", say:"yuh-gee-suh sah-jee-neul \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I look at the picture here?" },
+      { pron:true, lang:'ko-KR', front:"이건 제 인생 사진이에요.", say:"ee-guhn \"ch\"eh een-saeng sah-jee-nee-eh-yoh", meaning:"This is my best picture ever." },
+      { pron:true, lang:'ko-KR', front:"다시 보여 주세요.", say:"\"t\"ah-shee \"p\"oh-yuh \"ch\"oo-seh-yoh", meaning:"Please show me again." },
+      { pron:true, lang:'ko-KR', front:"이 포토카드를 봐도 될까요?", say:"ee poh-toh-kah-deu-reul \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I look at this photocard?" },
+      { pron:true, lang:'ko-KR', front:"이 포토카드는 제 보물이에요.", say:"ee poh-toh-kah-deu-neun \"ch\"eh \"p\"oh-moo-ree-eh-yoh", meaning:"This photocard is my treasure." },
+      { pron:true, lang:'ko-KR', front:"제 마음 알아 주세요.", say:"\"ch\"eh \"mb\"ah-eum ah-rah \"ch\"oo-seh-yoh", meaning:"Please understand my heart." },
+      { pron:true, lang:'ko-KR', front:"여기서 친구랑 앉아도 될까요?", say:"yuh-gee-suh \"ch\"een-goo-rahng ahn-jah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I sit here with my friend?" },
+  ]},
+  { name:"Day 4", noShuffle:true, cards: [
+      { pron:true, lang:'ko-KR', front:"이 앨범을 봐도 될까요?", say:"ee el-buh-meul \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I look at this album?" },
+      { pron:true, lang:'ko-KR', front:"이 앨범은 진짜 대박이에요.", say:"ee el-buh-meun \"ch\"een-jjah \"t\"ae-bah-gee-eh-yoh", meaning:"This album is really amazing." },
+      { pron:true, lang:'ko-KR', front:"앨범 주세요.", say:"el-bum \"ch\"oo-seh-yoh", meaning:"Please give me the album." },
+      { pron:true, lang:'ko-KR', front:"여기서 라면 먹고 드라마 봐도 될까요?", say:"yuh-gee-suh Lah-myuhn \"mb\"uhk-ggoh \"t\"eu-rah-mah \"p\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I eat ramen and watch a drama here?" },
+      { pron:true, lang:'ko-KR', front:"오늘은 완벽한 날이에요.", say:"oh-neu-reun wahn-byuh-kahn nah-ree-eh-yoh", meaning:"Today is a perfect day." },
+      { pron:true, lang:'ko-KR', front:"라면 끓여 주세요.", say:"Lah-myuhn kkeu-ryuh \"ch\"oo-seh-yoh", meaning:"Please cook ramen for me." },
+      { pron:true, lang:'ko-KR', front:"이거 먹고 울어도 될까요?", say:"ee-guh \"mb\"uhk-ggoh oo-ruh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I eat this and cry?" },
+      { pron:true, lang:'ko-KR', front:"저는 드라마 주인공이에요.", say:"\"ch\"uh-neun \"t\"eu-rah-mah \"ch\"oo-een-gong-ee-eh-yoh", meaning:"I am the main character of a drama." },
+      { pron:true, lang:'ko-KR', front:"저 좀 봐 주세요.", say:"\"ch\"uh \"ch\"om \"p\"wah \"ch\"oo-seh-yoh", meaning:"Please look at me." },
+      { pron:true, lang:'ko-KR', front:"여기서 커피 마셔도 될까요?", say:"yuh-gee-suh kuh-pee \"mb\"ah-shyuh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I drink coffee here?" },
+      { pron:true, lang:'ko-KR', front:"여기는 제 콘서트 자리예요.", say:"yuh-gee-neun \"ch\"eh kon-suh-teu \"ch\"ah-ree-yeh-yoh", meaning:"This is my concert seat." },
+      { pron:true, lang:'ko-KR', front:"응원봉 주세요.", say:"eung-won-bong \"ch\"oo-seh-yoh", meaning:"Please give me a light stick." },
+      { pron:true, lang:'ko-KR', front:"이거 여기 놔도 될까요?", say:"ee-guh yuh-gee \"nd\"wah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I put this here?" },
+      { pron:true, lang:'ko-KR', front:"이건 아이스 아메리카노예요.", say:"ee-guhn ah-ee-seu ah-meh-ree-kah-noh-yeh-yoh", meaning:"This is an iced Americano." },
+      { pron:true, lang:'ko-KR', front:"커피 주세요.", say:"kuh-pee \"ch\"oo-seh-yoh", meaning:"Please give me coffee." },
+      { pron:true, lang:'ko-KR', front:"여기서 기다려도 될까요?", say:"yuh-gee-suh \"k\"ee-dah-ryuh-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I wait here?" },
+      { pron:true, lang:'ko-KR', front:"저는 돈 없는 팬이에요.", say:"\"ch\"uh-neun \"t\"on uhm-neun pen-ee-eh-yoh", meaning:"I am a fan with no money." },
+      { pron:true, lang:'ko-KR', front:"콘서트 티켓 주세요.", say:"kon-suh-teu tee-ket \"ch\"oo-seh-yoh", meaning:"Please give me a concert ticket." },
+      { pron:true, lang:'ko-KR', front:"이거 확인해도 될까요?", say:"ee-guh hwah-een-hae-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I check this?" },
+      { pron:true, lang:'ko-KR', front:"이건 비밀이에요.", say:"ee-guhn \"p\"ee-mee-ree-eh-yoh", meaning:"This is a secret." },
+      { pron:true, lang:'ko-KR', front:"말해 주세요.", say:"\"mb\"ahl-hae \"ch\"oo-seh-yoh", meaning:"Please tell me." },
+      { pron:true, lang:'ko-KR', front:"먼저 가도 될까요?", say:"\"mb\"uhn-juh \"k\"ah-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I go first?" },
+      { pron:true, lang:'ko-KR', front:"저는 한국어 학생이에요.", say:"\"ch\"uh-neun han-goo-guh hahk-saeng-ee-eh-yoh", meaning:"I am a Korean student." },
+      { pron:true, lang:'ko-KR', front:"천천히 말해 주세요.", say:"chuhn-chuhn-hee \"mb\"ahl-hae \"ch\"oo-seh-yoh", meaning:"Please speak slowly." },
+      { pron:true, lang:'ko-KR', front:"오늘만 야속해도 될까요?", say:"oh-neul-mahn yah-soh-kae-doh \"t\"wel-kkah-yoh?", meaning:"Would it be okay if I’m cold-hearted just for today?" },
+  ]},
+];
+
 /* Absolute Beginner "weeks". These use pronunciation cards with two levels
    (Repeat / Memory) instead of the Easy/Hard build flow. They live in the same
    LEVELS array (appended below) so they share the boss/stat indexing; the `pron`
    flag routes them to the pronunciation flow. */
 const AB_WEEK1 = { id:101, title:"WEEK 1: BASIC SOUNDS", emoji:"🐢", pron:true, pronFolder: AB_WEEK1_DAYS };
+const AB_WEEK2 = { id:102, title:"WEEK 2: K-CULTURE", emoji:"🎤", pron:true, pronFolder: AB_WEEK2_DAYS };
+const AB_WEEK3 = { id:103, title:"WEEK 3: SENTENCES", emoji:"💬", pron:true, pronFolder: AB_WEEK3_DAYS };
+const AB_WEEK4 = { id:104, title:"WEEK 4: CAN I...?", emoji:"🙋", pron:true, pronFolder: AB_WEEK4_DAYS };
+const AB_WEEK5 = { id:105, title:"WEEK 5: MAY I...?", emoji:"🙏", pron:true, pronFolder: AB_WEEK5_DAYS };
 
 // append AB weeks to LEVELS so they share index space (Novice = 0-4, AB = 5+)
 LEVELS.push(AB_WEEK1);
 const AB_WEEK1_INDEX = LEVELS.length - 1;
+LEVELS.push(AB_WEEK2);
+const AB_WEEK2_INDEX = LEVELS.length - 1;
+LEVELS.push(AB_WEEK3);
+const AB_WEEK3_INDEX = LEVELS.length - 1;
+LEVELS.push(AB_WEEK4);
+const AB_WEEK4_INDEX = LEVELS.length - 1;
+LEVELS.push(AB_WEEK5);
+const AB_WEEK5_INDEX = LEVELS.length - 1;
 
 /* ── COLLECTIONS ──
    Top-level grouping above the weeks. "Novice Level" contains Weeks 1-5 (the
    five LEVELS entries by index); "Absolute Beginner" is empty for now. Picking
    a collection shows its weeks; weeks then open their day pickers as before. */
 const COLLECTIONS = [
-  { key:'absolute', name:'ABSOLUTE BEGINNER', desc:'Learn the Korean sounds! See a letter, say the sound. Repeat first, then from memory.', weeks:[AB_WEEK1_INDEX], directDays:true },
+  { key:'absolute', name:'ABSOLUTE BEGINNER', desc:'Learn the Korean sounds! See a letter, say the sound. Repeat first, then from memory.', weeks:[AB_WEEK1_INDEX, AB_WEEK2_INDEX, AB_WEEK3_INDEX, AB_WEEK4_INDEX, AB_WEEK5_INDEX] },
   { key:'novice',   name:'NOVICE LEVEL',      desc:'Weeks 1-5. Build, read, and speak your way through each boss.', weeks:[0,1,2,3,4] }
 ];
 let currentCollection = null;  // null = showing the collection picker; else index into COLLECTIONS
@@ -7140,12 +7700,55 @@ function refreshFighterUI(){
 function buildDeckList(){
   const list = $('deckList');
   list.innerHTML = '';
+  // The Bonus Activities section only belongs on the top-level collection
+  // picker, not inside a collection's week list.
+  const bonusHead = $('bonusHead'), bonusList = $('bonusList');
   if(currentCollection === null){
     buildCollectionList(list);
+    if(bonusHead) bonusHead.classList.remove('hidden');
+    if(bonusList){ bonusList.classList.remove('hidden'); buildBonusList(bonusList); }
   } else {
     buildWeekList(list, COLLECTIONS[currentCollection]);
+    if(bonusHead) bonusHead.classList.add('hidden');
+    if(bonusList){ bonusList.classList.add('hidden'); bonusList.innerHTML = ''; }
   }
   if(typeof enlargeKorean==='function') enlargeKorean(list);
+}
+
+/* Bonus Activities: a single card linking out to the daily activities site.
+   Locked until 40 days after account registration (i.e. after the 6-week program
+   ends). Until then it shows grayed out with an explanatory message. */
+const BONUS_DAILY_URL = 'https://cyinthehouse.github.io/daily/';
+const BONUS_UNLOCK_DAYS = 40;
+function bonusUnlocked(){
+  // Admin override: if the account is flagged, unlock regardless of age.
+  if(window.KBB_USER && window.KBB_USER.bonusOverride === true) return true;
+  const reg = window.KBB_USER && window.KBB_USER.registeredAt;
+  // Fail CLOSED: if we can't determine a registration date, keep it locked.
+  if(!reg) return false;
+  const days = (Date.now() - reg) / 86400000;
+  return days >= BONUS_UNLOCK_DAYS;
+}
+function buildBonusList(list){
+  list.innerHTML = '';
+  const card = document.createElement('div');
+  card.className = 'deck-card';
+  if(bonusUnlocked()){
+    card.innerHTML = `
+      <div class="deck-title">DAILY ACTIVITIES</div>
+      <a class="deck-half folder shine-btn" href="${BONUS_DAILY_URL}" target="_blank" rel="noopener noreferrer">
+        <span class="mt">OPEN ACTIVITIES</span>
+        <span class="md">Complete daily activities &amp; register for more classes here.</span>
+      </a>`;
+  } else {
+    card.innerHTML = `
+      <div class="deck-title">DAILY ACTIVITIES</div>
+      <button class="deck-half folder" disabled>
+        <span class="mt">🔒 LOCKED</span>
+        <span class="md">This will unlock after your 6 week program ends!</span>
+      </button>`;
+  }
+  list.appendChild(card);
 }
 
 /* total cards in a level, whichever shape it is */
@@ -7169,7 +7772,10 @@ function buildCollectionList(list){
       const dayCount = (LEVELS[col.weeks[0]].pronFolder || []).length;
       meta = `${dayCount} DAYS, ${cardCount} SOUNDS`;
     } else {
-      meta = `${weekCount} WEEKS, ${cardCount} CARDS`;
+      // "SOUNDS" for pronunciation collections, "CARDS" otherwise; singular WEEK.
+      const isPronCol = col.weeks.every(wi => LEVELS[wi] && LEVELS[wi].pron);
+      const wLabel = weekCount === 1 ? 'WEEK' : 'WEEKS';
+      meta = `${weekCount} ${wLabel}, ${cardCount} ${isPronCol ? 'SOUNDS' : 'CARDS'}`;
     }
     card.innerHTML = `
       <div class="deck-title">${col.name}<span>${meta}</span></div>
