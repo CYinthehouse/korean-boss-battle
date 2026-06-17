@@ -1555,8 +1555,7 @@ function enterGame(authUser, profile){
       const t = new Date(authUser.metadata.creationTime).getTime();
       if(!isNaN(t)){ registeredAt = t; regSource = 'auth.metadata.creationTime'; }
     }
-  }catch(e){ console.warn('[bonus] registeredAt read failed', e); }
-  console.log('[bonus] registeredAt source:', regSource, '→', registeredAt ? new Date(registeredAt).toISOString() : null);
+  }catch(e){ /* registeredAt stays null → fail closed */ }
   window.KBB_USER = {
     uid: authUser.uid,
     displayName: name,
@@ -1566,6 +1565,10 @@ function enterGame(authUser, profile){
   };
   $('loginScreen').classList.add('hidden');
   $('startScreen').classList.remove('hidden');
+  // Rebuild the collection/bonus list now that KBB_USER is populated, so the
+  // Bonus Activities lock reflects this account's registration date (the initial
+  // render ran at load time, before login, when KBB_USER was still null).
+  if (typeof buildDeckList === 'function') buildDeckList();
   // Reveal the leaderboard side button (game script defines this once loaded).
   if (typeof window.KBB_onLogin === 'function') window.KBB_onLogin();
   // Offer the mic-permission popup (game script defines this; shows once).
@@ -7738,9 +7741,8 @@ function bonusUnlocked(){
   if(window.KBB_USER && window.KBB_USER.bonusOverride === true) return true;
   const reg = window.KBB_USER && window.KBB_USER.registeredAt;
   // Fail CLOSED: if we can't determine a registration date, keep it locked.
-  if(!reg) { console.log('[bonus] no registeredAt → locked', window.KBB_USER); return false; }
+  if(!reg) return false;
   const days = (Date.now() - reg) / 86400000;
-  console.log('[bonus] registeredAt', new Date(reg).toISOString(), '| days since:', days.toFixed(1), '| unlocked:', days >= BONUS_UNLOCK_DAYS);
   return days >= BONUS_UNLOCK_DAYS;
 }
 function buildBonusList(list){
