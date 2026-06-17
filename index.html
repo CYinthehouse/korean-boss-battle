@@ -1531,19 +1531,32 @@ function enterGame(authUser, profile){
   const nameEl = $('startUserName');
   if (nameEl) nameEl.textContent = name;
   // Stash the live user so the game can save stats and highlight "you" on the board.
-  // registeredAt (epoch ms) gates the Bonus Activities unlock. Prefer the
-  // Firestore createdAt; fall back to the Firebase Auth account creation time
-  // (present even for legacy/older accounts that predate the createdAt field).
-  let registeredAt = null;
+  // registeredAt (epoch ms) gates the Bonus Activities unlock. Try several
+  // sources in order of trustworthiness and log which one wins, so a locked
+  // older account can be diagnosed from the console.
+  let registeredAt = null, regSource = 'none';
   try{
-    if (profile && profile.createdAt && typeof profile.createdAt.toMillis === 'function'){
-      registeredAt = profile.createdAt.toMillis();
-    } else if (profile && profile.createdAt && profile.createdAt.seconds){
-      registeredAt = profile.createdAt.seconds * 1000;
-    } else if (authUser && authUser.metadata && authUser.metadata.creationTime){
-      registeredAt = new Date(authUser.metadata.creationTime).getTime();
+    const c = profile && profile.createdAt;
+    if (c && typeof c.toMillis === 'function'){ registeredAt = c.toMillis(); regSource = 'createdAt.toMillis'; }
+    else if (c && typeof c.seconds === 'number'){ registeredAt = c.seconds * 1000; regSource = 'createdAt.seconds'; }
+    else if (typeof c === 'number'){ registeredAt = c; regSource = 'createdAt(number)'; }
+    else if (typeof c === 'string'){ const t = Date.parse(c); if(!isNaN(t)){ registeredAt = t; regSource = 'createdAt(string)'; } }
+    // enrollment start date, if present, is another good signal of program start
+    else if (profile && profile.enrollment && profile.enrollment.startDate){
+      const s = profile.enrollment.startDate;
+      const t = (s && typeof s.toMillis === 'function') ? s.toMillis()
+              : (s && typeof s.seconds === 'number') ? s.seconds * 1000
+              : (typeof s === 'string') ? Date.parse(s) : NaN;
+      if(!isNaN(t)){ registeredAt = t; regSource = 'enrollment.startDate'; }
     }
-  }catch(e){}
+    // Firebase Auth account creation (note: for server-migrated legacy accounts
+    // this is the migration date, not original signup).
+    if (registeredAt == null && authUser && authUser.metadata && authUser.metadata.creationTime){
+      const t = new Date(authUser.metadata.creationTime).getTime();
+      if(!isNaN(t)){ registeredAt = t; regSource = 'auth.metadata.creationTime'; }
+    }
+  }catch(e){ console.warn('[bonus] registeredAt read failed', e); }
+  console.log('[bonus] registeredAt source:', regSource, '→', registeredAt ? new Date(registeredAt).toISOString() : null);
   window.KBB_USER = {
     uid: authUser.uid,
     displayName: name,
@@ -7725,8 +7738,9 @@ function bonusUnlocked(){
   if(window.KBB_USER && window.KBB_USER.bonusOverride === true) return true;
   const reg = window.KBB_USER && window.KBB_USER.registeredAt;
   // Fail CLOSED: if we can't determine a registration date, keep it locked.
-  if(!reg) return false;
+  if(!reg) { console.log('[bonus] no registeredAt → locked', window.KBB_USER); return false; }
   const days = (Date.now() - reg) / 86400000;
+  console.log('[bonus] registeredAt', new Date(reg).toISOString(), '| days since:', days.toFixed(1), '| unlocked:', days >= BONUS_UNLOCK_DAYS);
   return days >= BONUS_UNLOCK_DAYS;
 }
 function buildBonusList(list){
