@@ -1208,9 +1208,14 @@ header{display:flex;align-items:center;justify-content:space-between;gap:8px;}
       </div>
       <div class="login-err" id="liLoginErr"></div>
       <button class="btn-auth shine-btn" id="liLoginBtn"><span class="ba-ic">▶</span><span>LOG IN</span></button>
+      <button type="button" id="liForgotBtn" style="display:block;margin:10px auto 0;background:none;border:none;color:var(--cyan-deep,#41c0ff);font-family:inherit;font-size:12px;text-decoration:underline;cursor:pointer;padding:4px;">Forgot password?</button>
     </div>
     <!-- SIGNUP form -->
     <div id="liSignupForm" style="display:none;">
+      <div class="login-field">
+        <label>DISPLAY NAME</label>
+        <input class="inp" id="liSignupName" type="text" autocomplete="name" maxlength="40" placeholder="shown on the leaderboard">
+      </div>
       <div class="login-field">
         <label>EMAIL</label>
         <input class="inp" id="liSignupEmail" type="email" autocomplete="username" inputmode="email" placeholder="your@email.com">
@@ -1684,9 +1689,11 @@ async function doLogin(){
 /* ── SIGNUP (pure Firebase Auth) ── */
 async function doSignup(){
   const email   = ($('liSignupEmail').value || '').trim();
+  const dispName = ($('liSignupName').value || '').trim();
   const pass    = $('liSignupPass').value || '';
   const confirm = $('liSignupConfirm').value || '';
   const err     = $('liSignupErr');
+  if (!dispName || dispName.length < 2){ err.style.color = '#FF8FAB'; err.textContent = 'Please enter a display name.'; return; }
   if (!email || !pass){ err.style.color = '#FF8FAB'; err.textContent = 'Enter email and password.'; return; }
   if (email.indexOf('@') < 1 || email.indexOf('.') < 3){ err.style.color = '#FF8FAB'; err.textContent = 'Please enter a valid email.'; return; }
   if (pass.length < 6){ err.style.color = '#FF8FAB'; err.textContent = 'Password must be 6+ characters.'; return; }
@@ -1717,7 +1724,7 @@ async function doSignup(){
     } catch(e){ console.warn('Legacy email check:', e); }
     await kbDb.collection(TC).doc(cred.user.uid).set({
       username: emailLower,
-      displayName: email,
+      displayName: dispName,
       emoji: 0, level: '', goal: '',
       gachaRolls: SIGNUP_BONUS_ROLLS,
       points: 0, freeEggsUsed: false,
@@ -1749,6 +1756,35 @@ $('liSignupBtn').addEventListener('click', doSignup);
 $('logoutBtn').addEventListener('click', doLogout);
 // Enter-to-submit
 $('liLoginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+/* ── Forgot password ── Firebase emails the student a reset link directly. */
+$('liForgotBtn').addEventListener('click', async () => {
+  const err = $('liLoginErr');
+  let email = ($('liLoginEmail').value || '').trim();
+  if (!email){
+    email = (window.prompt('Enter your account email and we\'ll send a reset link:', '') || '').trim();
+  }
+  if (!email || email.indexOf('@') < 1){
+    err.style.color = '#FF8FAB'; err.textContent = 'Enter your email above first, then tap "Forgot password?"'; return;
+  }
+  if (!kbAuth){ err.style.color = '#FF8FAB'; err.textContent = 'Connection error. Refresh and try again.'; return; }
+  err.style.color = '#9C8BAE'; err.textContent = 'Sending reset link…';
+  try {
+    await kbAuth.sendPasswordResetEmail(email.toLowerCase());
+    err.style.color = '#39ff14';
+    err.textContent = 'Reset link sent! Check your email (and spam folder).';
+  } catch(e){
+    // Don't reveal whether an email exists; show a neutral success-style message
+    // for user-not-found, surface real errors otherwise.
+    if (e && e.code === 'auth/user-not-found'){
+      err.style.color = '#39ff14';
+      err.textContent = 'If that email has an account, a reset link is on its way.';
+    } else {
+      err.style.color = '#FF8FAB';
+      err.textContent = 'Couldn\'t send: ' + (e.message || e.code || 'try again');
+    }
+  }
+});
 $('liSignupConfirm').addEventListener('keydown', e => { if (e.key === 'Enter') doSignup(); });
 
 /* ── auto-login: persisted session restores straight into the game ── */
@@ -7533,6 +7569,38 @@ async function renderCardImage(){
    ============================================================ */
 const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1515484657930735726/wrqj2eGI2dYuMYWTCxtYu1SNNoqDHnh-dAoihbAt3g1he50dM9KmOSWHNDOAFTJZA6Dc';
 
+/* Ensure this account has a real display name before we post it anywhere.
+ * If the name is missing or is still an email address (contains '@'), prompt
+ * the player for one, save it to tevello_accounts/{uid} (shared with Gacha),
+ * and update KBB_USER live so the very next share uses the fresh name in
+ * real time. Returns the resolved name, or null if the player cancelled
+ * (caller should abort the share so we never leak the email). */
+async function ensureKbDisplayName(){
+  var u = window.KBB_USER;
+  var cur = (u && u.displayName) ? String(u.displayName).trim() : '';
+  var needs = !cur || cur.indexOf('@') !== -1;
+  if (!needs) return cur;                       // already has a real name
+  var entered = '';
+  // Loop until they give something usable or cancel.
+  while (true){
+    entered = (window.prompt('Pick a display name for the leaderboard & Discord:', '') || '').trim();
+    if (entered === '') return null;            // cancelled or left blank → abort
+    if (entered.length >= 2 && entered.indexOf('@') === -1) break;
+    window.alert('Please enter a name of at least 2 letters (no email addresses).');
+  }
+  // Persist to the shared account doc, then sync local state for instant use.
+  try {
+    if (window.KBB_DB && u && u.uid){
+      await window.KBB_DB.collection(window.KBB_TC).doc(u.uid).update({ displayName: entered });
+    }
+  } catch(e){ console.warn('Save display name:', e); }
+  if (u) u.displayName = entered;               // real-time: next victoryShareText() uses this
+  // Update the start-screen label too, if present.
+  var nameEl = document.getElementById('startUserName');
+  if (nameEl) nameEl.textContent = entered;
+  return entered;
+}
+
 function victoryShareText(){
   var rawWho = (window.KBB_USER && window.KBB_USER.displayName) ? window.KBB_USER.displayName : 'A challenger';
   // Neutralize Discord mentions/markdown in the user-controlled name: drop @, #,
@@ -7571,6 +7639,14 @@ $('discordBtn').addEventListener('click', async () => {
   btn.disabled = true;
   btn.textContent = '🎨 Posting…';
   try{
+    // Make sure we have a real name (not empty / not an email) before posting.
+    // If the player cancels the name prompt, abort so we never post their email.
+    const okName = await ensureKbDisplayName();
+    if (okName === null){
+      btn.textContent = '✏️ Name needed';
+      setTimeout(()=>{ btn.disabled = false; btn.textContent = '💬 Post to Discord'; }, 2200);
+      return;
+    }
     const blob = await buildCardBlob();
     const form = new FormData();
     form.append('payload_json', JSON.stringify({ content: victoryShareText(), allowed_mentions: { parse: [] } }));
